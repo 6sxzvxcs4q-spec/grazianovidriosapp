@@ -67,18 +67,174 @@ const eliminarPresupuesto = (id) => {
 
   // GENERAR CORTES
 const generarCortes = () => {
-  const {
-    resultadoFinal,
-    hojasUsadas,
-  } = generarCortesOptimizados(
-    piezas,
-    ANCHO_PLANCHA,
-    ALTO_PLANCHA
-  );
+  let piezasOrdenadas = [...piezas].sort((a, b) => {
+    return b.ancho * b.alto - a.ancho * a.alto;
+  });
+
+  let resultadoFinal = [];
+
+  let hojaActual = 1;
+
+  let skylines = {
+    1: [
+      {
+        x: 0,
+        y: 0,
+        width: ANCHO_PLANCHA,
+      },
+    ],
+  };
+
+  const limpiarSkyline = (skyline) => {
+    return skyline.filter((nodo) => {
+      return (
+        nodo.width > 0 &&
+        nodo.x < ANCHO_PLANCHA &&
+        nodo.y < ALTO_PLANCHA
+      );
+    });
+  };
+
+  const buscarMejorPosicion = (
+    pieza,
+    skyline
+  ) => {
+    let mejor = null;
+
+    let opciones = [
+      {
+        ancho: pieza.ancho,
+        alto: pieza.alto,
+      },
+      {
+        ancho: pieza.alto,
+        alto: pieza.ancho,
+      },
+    ];
+
+    opciones.forEach((opcion) => {
+      skyline.forEach((nodo, index) => {
+        if (opcion.ancho <= nodo.width) {
+          let sobraHorizontal =
+            nodo.width - opcion.ancho;
+
+          let alturaFinal =
+            nodo.y + opcion.alto;
+
+          if (
+            alturaFinal <= ALTO_PLANCHA
+          ) {
+            if (
+              !mejor ||
+              alturaFinal < mejor.altura ||
+              (alturaFinal ===
+                mejor.altura &&
+                sobraHorizontal <
+                  mejor.sobra)
+            ) {
+              mejor = {
+                index,
+                x: nodo.x,
+                y: nodo.y,
+                ancho: opcion.ancho,
+                alto: opcion.alto,
+                altura: alturaFinal,
+                sobra: sobraHorizontal,
+              };
+            }
+          }
+        }
+      });
+    });
+
+    return mejor;
+  };
+
+  piezasOrdenadas.forEach((pieza) => {
+    let colocada = false;
+
+    for (
+      let hoja = 1;
+      hoja <= hojaActual;
+      hoja++
+    ) {
+      let skyline = skylines[hoja];
+
+      let mejor =
+        buscarMejorPosicion(
+          pieza,
+          skyline
+        );
+
+      if (mejor) {
+        resultadoFinal.push({
+          ...pieza,
+          x: mejor.x,
+          y: mejor.y,
+          ancho: mejor.ancho,
+          alto: mejor.alto,
+          hoja,
+        });
+
+        skyline[mejor.index] = {
+          x: mejor.x + mejor.ancho,
+          y: mejor.y,
+          width:
+            skyline[mejor.index]
+              .width - mejor.ancho,
+        };
+
+        skyline.push({
+          x: mejor.x,
+          y: mejor.y + mejor.alto,
+          width: mejor.ancho,
+        });
+
+        skyline.sort((a, b) => {
+          if (a.y === b.y) {
+            return a.x - b.x;
+          }
+
+          return a.y - b.y;
+        });
+
+        skylines[hoja] =
+          limpiarSkyline(skyline);
+
+        colocada = true;
+        break;
+      }
+    }
+
+    if (!colocada) {
+      hojaActual++;
+
+      resultadoFinal.push({
+        ...pieza,
+        x: 0,
+        y: 0,
+        ancho: pieza.ancho,
+        alto: pieza.alto,
+        hoja: hojaActual,
+      });
+
+      skylines[hojaActual] = [
+        {
+          x: pieza.ancho,
+          y: 0,
+          width:
+            ANCHO_PLANCHA -
+            pieza.ancho,
+        },
+      ];
+    }
+  });
 
   setResultado(resultadoFinal);
-  setHojasUsadas(hojasUsadas);
 };
+
+  setHojasUsadas(hojasUsadas);
+
 
   // GUARDAR PRESUPUESTO
   const guardarPresupuesto = () => {
