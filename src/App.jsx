@@ -8,6 +8,9 @@ function App() {
   const [alto, setAlto] = useState('');
   const [cantidad, setCantidad] = useState('1');
   const [resultado, setResultado] = useState(null);
+  
+  // Estado para la longitud de la barra del perfil
+  const [largoPerfil, setLargoPerfil] = useState('3600');
 
   const agregarPieza = (e) => {
     e.preventDefault();
@@ -35,98 +38,71 @@ function App() {
 
   const procesarCortes = () => {
     if (piezas.length === 0) return;
-    const optimizacion = optimizarCortes(piezas);
+    // Usamos el largo de perfil seleccionado (3600, 1100 o 1000)
+    const optimizacion = optimizarCortes(piezas, Number(largoPerfil));
     setResultado(optimizacion);
   };
 
-  const hojasAgrupadas = resultado
-    ? resultado.piezas.reduce((acc, pieza) => {
-        if (!acc[pieza.hoja]) acc[pieza.hoja] = [];
-        acc[pieza.hoja].push(pieza);
-        return acc;
-      }, {})
-    : {};
-
   return (
-    <div className="container" style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h2>Graziano Vidrios - Optimizador</h2>
+    <div className="container">
+      <h1>Optimizador de Cortes - Graziano Vidrios</h1>
       
-      <form onSubmit={agregarPieza} style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-        <div>
-          <label style={{ display: 'block' }}>Ancho (mm):</label>
-          <input type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} style={{ padding: '5px', width: '100px' }} />
+      <div className="config-seccion">
+        <label><strong>Longitud de la barra de perfil:</strong></label>
+        <select 
+          value={largoPerfil} 
+          onChange={(e) => setLargoPerfil(e.target.value)}
+          className="select-perfil"
+        >
+          <option value="3600">3600 mm (Estándar)</option>
+          <option value="1100">1100 mm</option>
+          <option value="1000">1000 mm</option>
+        </select>
+      </div>
+
+      <form onSubmit={agregarPieza} className="form-piezas">
+        <div className="input-group">
+          <label>Ancho (mm):</label>
+          <input type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} placeholder="Ej: 500" />
         </div>
-        <div>
-          <label style={{ display: 'block' }}>Alto (mm):</label>
-          <input type="number" value={alto} onChange={(e) => setAlto(e.target.value)} style={{ padding: '5px', width: '100px' }} />
+        <div className="input-group">
+          <label>Alto (mm):</label>
+          <input type="number" value={alto} onChange={(e) => setAlto(e.target.value)} placeholder="Ej: 800" />
         </div>
-        <div>
-          <label style={{ display: 'block' }}>Cantidad:</label>
-          <input type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} style={{ padding: '5px', width: '70px' }} />
+        <div className="input-group">
+          <label>Cantidad:</label>
+          <input type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} min="1" />
         </div>
-        <button type="submit" style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px' }}>
-          Agregar Pieza
-        </button>
+        <button type="submit" className="btn-add">Agregar Pieza</button>
       </form>
 
       {piezas.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3>Piezas cargadas:</h3>
-          <ul>
-            {piezas.map((p, index) => (
-              <li key={p.id}>Vidrio {index + 1}: {p.ancho} x {p.alto} mm</li>
+        <div className="lista-seccion">
+          <h3>Piezas a cortar ({piezas.length}):</h3>
+          <ul className="lista-piezas">
+            {piezas.map((p, idx) => (
+              <li key={p.id}>#{idx + 1}: {p.ancho} x {p.alto} mm</li>
             ))}
           </ul>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={procesarCortes} style={{ padding: '10px 15px', cursor: 'pointer', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
-              Generar cortes
-            </button>
-            <button onClick={limpiarLista} style={{ padding: '10px 15px', cursor: 'pointer', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px' }}>
-              Limpiar todo
-            </button>
+          <div className="acciones-recuadro">
+            <button onClick={procesarCortes} className="btn-optimizar">Optimizar Cortes</button>
+            <button onClick={limpiarLista} className="btn-limpiar">Limpiar Todo</button>
           </div>
         </div>
       )}
 
       {resultado && (
-        <div style={{ marginTop: '30px' }}>
-          <h3>Resultado de Optimización</h3>
-          <p><strong>Placas de vidrio utilizadas:</strong> {Object.keys(hojasAgrupadas).length}</p>
-
-          {Object.keys(hojasAgrupadas).map((numHoja) => (
-            <div key={numHoja} style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '15px', background: '#f9f9f9' }}>
-              <h4>Hoja N° {numHoja}</h4>
-              <div style={{ 
-                position: 'relative', 
-                width: '720px', 
-                height: '500px', 
-                border: '3px solid #000', 
-                backgroundColor: '#e0e0e0',
-                marginBottom: '10px'
-              }}>
-                {hojasAgrupadas[numHoja].map((pieza, idx) => (
-                  <div key={idx} style={{
-                    position: 'absolute',
-                    left: `${pieza.x / 5}px`,
-                    top: `${pieza.y / 5}px`,
-                    width: `${pieza.ancho / 5}px`,
-                    height: `${pieza.alto / 5}px`,
-                    backgroundColor: '#4dabf7',
-                    border: '1px solid #0056b3',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    overflow: 'hidden'
-                  }}>
-                    {/* Mostramos las medidas reales para que el operario no se confunda */}
-                    {Math.max(pieza.ancho, pieza.alto)}x{Math.min(pieza.ancho, pieza.alto)}
-                  </div>
-                ))}
-              </div>
+        <div className="resultado-seccion">
+          <h2>Resultado del Cálculo</h2>
+          <p><strong>Barras de {largoPerfil}mm necesarias:</strong> {resultado.barrasUsadas}</p>
+          <p><strong>Desperdicio total:</strong> {resultado.desperdicioTotal} mm</p>
+          
+          <h3>Detalle por Barra:</h3>
+          {resultado.detalles.map((barra, i) => (
+            <div key={i} className="barra-item">
+              <h4>Barra {i + 1}:</h4>
+              <p>Cortes realizados: {barra.cortes.join('mm, ')}mm</p>
+              <p>Sobrante de esta barra: {barra.sobrante} mm</p>
             </div>
           ))}
         </div>
