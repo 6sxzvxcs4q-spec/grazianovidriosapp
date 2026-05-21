@@ -1,677 +1,138 @@
-import { useEffect, useState } from "react";
-import jsPDF from "jspdf";
+import React, { useState } from 'react';
+import { optimizarCortes } from './optimizador';
+import './App.css';
 
-export default function App() {
-  const ANCHO_PLANCHA = 3600;
-  const ALTO_PLANCHA = 2600;
-  const ESCALA = 0.18;
-
-  const [cliente, setCliente] = useState("");
-  const [trabajo, setTrabajo] = useState("");
-
-  const [ancho, setAncho] = useState("");
-  const [alto, setAlto] = useState("");
-  const [cantidad, setCantidad] = useState(1);
-
+function App() {
   const [piezas, setPiezas] = useState([]);
-  const [resultado, setResultado] = useState([]);
+  const [ancho, setAncho] = useState('');
+  const [alto, setAlto] = useState('');
+  const [cantidad, setCantidad] = useState('1');
+  const [resultado, setResultado] = useState(null);
 
-  const [presupuestos, setPresupuestos] =
-    useState([]);
+  const agregarPieza = (e) => {
+    e.preventDefault();
+    if (!ancho || !alto || Number(cantidad) <= 0) return;
 
-  useEffect(() => {
-    const guardados =
-      JSON.parse(
-        localStorage.getItem(
-          "presupuestos"
-        )
-      ) || [];
-
-    setPresupuestos(guardados);
-  }, []);
-
-  const agregarPieza = () => {
-    if (!ancho || !alto) return;
-
-    const nuevas = [];
-
-    for (let i = 0; i < cantidad; i++) {
-      nuevas.push({
-        id: Date.now() + i,
+    const nuevasPiezas = [];
+    for (let i = 0; i < Number(cantidad); i++) {
+      nuevasPiezas.push({
+        id: Date.now() + Math.random(),
         ancho: Number(ancho),
         alto: Number(alto),
       });
     }
 
-    setPiezas([...piezas, ...nuevas]);
-
-    setAncho("");
-    setAlto("");
-    setCantidad(1);
+    setPiezas([...piezas, ...nuevasPiezas]);
+    setAncho('');
+    setAlto('');
+    setCantidad('1');
   };
 
-  const eliminarPieza = (id) => {
-    setPiezas(
-      piezas.filter((p) => p.id !== id)
-    );
+  const limpiarLista = () => {
+    setPiezas([]);
+    setResultado(null);
   };
 
-  const generarCortes = () => {
-    let piezasOrdenadas = [...piezas].sort(
-      (a, b) => {
-        return (
-          b.ancho * b.alto -
-          a.ancho * a.alto
-        );
-      }
-    );
-
-    let resultadoFinal = [];
-
-    let hojaActual = 1;
-
-    let skylines = {
-      1: [
-        {
-          x: 0,
-          y: 0,
-          width: ANCHO_PLANCHA,
-        },
-      ],
-    };
-
-    const limpiarSkyline = (skyline) => {
-      return skyline.filter((nodo) => {
-        return (
-          nodo.width > 0 &&
-          nodo.x < ANCHO_PLANCHA &&
-          nodo.y < ALTO_PLANCHA
-        );
-      });
-    };
-
-    const buscarMejorPosicion = (
-      pieza,
-      skyline
-    ) => {
-      let mejor = null;
-
-      let opciones = [
-        {
-          ancho: pieza.ancho,
-          alto: pieza.alto,
-        },
-        {
-          ancho: pieza.alto,
-          alto: pieza.ancho,
-        },
-      ];
-
-      opciones.forEach((opcion) => {
-        skyline.forEach((nodo, index) => {
-          if (
-            opcion.ancho <= nodo.width
-          ) {
-            let sobraHorizontal =
-              nodo.width -
-              opcion.ancho;
-
-            let alturaFinal =
-              nodo.y + opcion.alto;
-
-            if (
-              alturaFinal <=
-              ALTO_PLANCHA
-            ) {
-              if (
-                !mejor ||
-                alturaFinal <
-                  mejor.altura ||
-                (alturaFinal ===
-                  mejor.altura &&
-                  sobraHorizontal <
-                    mejor.sobra)
-              ) {
-                mejor = {
-                  index,
-                  x: nodo.x,
-                  y: nodo.y,
-                  ancho:
-                    opcion.ancho,
-                  alto:
-                    opcion.alto,
-                  altura:
-                    alturaFinal,
-                  sobra:
-                    sobraHorizontal,
-                };
-              }
-            }
-          }
-        });
-      });
-
-      return mejor;
-    };
-
-    piezasOrdenadas.forEach(
-      (pieza) => {
-        let colocada = false;
-
-        for (
-          let hoja = 1;
-          hoja <= hojaActual;
-          hoja++
-        ) {
-          let skyline =
-            skylines[hoja];
-
-          let mejor =
-            buscarMejorPosicion(
-              pieza,
-              skyline
-            );
-
-          if (mejor) {
-            resultadoFinal.push({
-              ...pieza,
-              x: mejor.x,
-              y: mejor.y,
-              ancho: mejor.ancho,
-              alto: mejor.alto,
-              hoja,
-            });
-
-            skyline[mejor.index] = {
-              x:
-                mejor.x +
-                mejor.ancho,
-              y: mejor.y,
-              width:
-                skyline[
-                  mejor.index
-                ].width -
-                mejor.ancho,
-            };
-
-            skyline.push({
-              x: mejor.x,
-              y:
-                mejor.y +
-                mejor.alto,
-              width: mejor.ancho,
-            });
-
-            skyline.sort((a, b) => {
-              if (a.y === b.y) {
-                return a.x - b.x;
-              }
-
-              return a.y - b.y;
-            });
-
-            skylines[hoja] =
-              limpiarSkyline(
-                skyline
-              );
-
-            colocada = true;
-            break;
-          }
-        }
-
-        if (!colocada) {
-          hojaActual++;
-
-          resultadoFinal.push({
-            ...pieza,
-            x: 0,
-            y: 0,
-            ancho: pieza.ancho,
-            alto: pieza.alto,
-            hoja: hojaActual,
-          });
-
-          skylines[hojaActual] = [
-            {
-              x: pieza.ancho,
-              y: 0,
-              width:
-                ANCHO_PLANCHA -
-                pieza.ancho,
-            },
-          ];
-        }
-      }
-    );
-
-    setResultado(resultadoFinal);
+  const procesarCortes = () => {
+    if (piezas.length === 0) return;
+    const optimizacion = optimizarCortes(piezas);
+    setResultado(optimizacion);
   };
 
-  const guardarPresupuesto = () => {
-    const nuevo = {
-      id: Date.now(),
-      cliente,
-      trabajo,
-      piezas,
-      resultado,
-      fecha:
-        new Date().toLocaleDateString(),
-    };
-
-    const actualizados = [
-      ...presupuestos,
-      nuevo,
-    ];
-
-    setPresupuestos(actualizados);
-
-    localStorage.setItem(
-      "presupuestos",
-      JSON.stringify(actualizados)
-    );
-
-    alert("Presupuesto guardado");
-  };
-
-  const eliminarPresupuesto = (id) => {
-    const actualizados =
-      presupuestos.filter(
-        (p) => p.id !== id
-      );
-
-    setPresupuestos(actualizados);
-
-    localStorage.setItem(
-      "presupuestos",
-      JSON.stringify(actualizados)
-    );
-  };
-
-  const cargarPresupuesto = (p) => {
-    setCliente(p.cliente);
-    setTrabajo(p.trabajo);
-    setPiezas(p.piezas);
-    setResultado(p.resultado);
-  };
-
-  const exportarPDF = () => {
-    const pdf = new jsPDF();
-
-    pdf.setFontSize(18);
-
-    pdf.text(
-      "Graziano Vidrios",
-      20,
-      20
-    );
-
-    pdf.setFontSize(12);
-
-    pdf.text(
-      `Cliente: ${cliente}`,
-      20,
-      40
-    );
-
-    pdf.text(
-      `Trabajo: ${trabajo}`,
-      20,
-      50
-    );
-
-    let yPDF = 70;
-
-    piezas.forEach((p, index) => {
-      pdf.text(
-        `${index + 1}) ${
-          p.ancho
-        } x ${p.alto}`,
-        20,
-        yPDF
-      );
-
-      yPDF += 8;
-    });
-
-    pdf.save(
-      `Presupuesto-${cliente}.pdf`
-    );
-  };
-
-  const hojasUsadas =
-    resultado.length > 0
-      ? Math.max(
-          ...resultado.map(
-            (p) => p.hoja
-          )
-        )
-      : 1;
+  const hojasAgrupadas = resultado
+    ? resultado.piezas.reduce((acc, pieza) => {
+        if (!acc[pieza.hoja]) acc[pieza.hoja] = [];
+        acc[pieza.hoja].push(pieza);
+        return acc;
+      }, {})
+    : {};
 
   return (
-    <div
-      style={{
-        padding: 20,
-        fontFamily: "Arial",
-        background: "#f4f4f4",
-        minHeight: "100vh",
-      }}
-    >
-      <h1>Graziano Vidrios</h1>
-
-      <div
-        style={{
-          background: "white",
-          padding: 15,
-          borderRadius: 10,
-          marginBottom: 20,
-        }}
-      >
-        <h2>Cliente</h2>
-
-        <input
-          type="text"
-          placeholder="Cliente"
-          value={cliente}
-          onChange={(e) =>
-            setCliente(e.target.value)
-          }
-          style={{
-            marginRight: 10,
-            padding: 8,
-          }}
-        />
-
-        <input
-          type="text"
-          placeholder="Trabajo"
-          value={trabajo}
-          onChange={(e) =>
-            setTrabajo(e.target.value)
-          }
-          style={{
-            padding: 8,
-          }}
-        />
-      </div>
-
-      <div
-        style={{
-          background: "white",
-          padding: 15,
-          borderRadius: 10,
-          marginBottom: 20,
-        }}
-      >
-        <h2>Agregar pieza</h2>
-
-        <input
-          type="number"
-          placeholder="Ancho"
-          value={ancho}
-          onChange={(e) =>
-            setAncho(e.target.value)
-          }
-          style={{
-            marginRight: 10,
-            padding: 8,
-          }}
-        />
-
-        <input
-          type="number"
-          placeholder="Alto"
-          value={alto}
-          onChange={(e) =>
-            setAlto(e.target.value)
-          }
-          style={{
-            marginRight: 10,
-            padding: 8,
-          }}
-        />
-
-        <input
-          type="number"
-          placeholder="Cantidad"
-          value={cantidad}
-          onChange={(e) =>
-            setCantidad(
-              Number(e.target.value)
-            )
-          }
-          style={{
-            width: 80,
-            marginRight: 10,
-            padding: 8,
-          }}
-        />
-
-        <button onClick={agregarPieza}>
-          Agregar
+    <div className="container" style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <h2>Graziano Vidrios - Optimizador</h2>
+      
+      <form onSubmit={agregarPieza} style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+        <div>
+          <label style={{ display: 'block' }}>Ancho (mm):</label>
+          <input type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} style={{ padding: '5px', width: '100px' }} />
+        </div>
+        <div>
+          <label style={{ display: 'block' }}>Alto (mm):</label>
+          <input type="number" value={alto} onChange={(e) => setAlto(e.target.value)} style={{ padding: '5px', width: '100px' }} />
+        </div>
+        <div>
+          <label style={{ display: 'block' }}>Cantidad:</label>
+          <input type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} style={{ padding: '5px', width: '70px' }} />
+        </div>
+        <button type="submit" style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px' }}>
+          Agregar Pieza
         </button>
-      </div>
+      </form>
 
-      <div
-        style={{
-          background: "white",
-          padding: 15,
-          borderRadius: 10,
-          marginBottom: 20,
-        }}
-      >
-        <h2>Piezas</h2>
-
-        {piezas.map((p) => (
-          <div
-            key={p.id}
-            style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              borderBottom:
-                "1px solid #ddd",
-              padding: 5,
-            }}
-          >
-            <span>
-              {p.ancho} x {p.alto}
-            </span>
-
-            <button
-              onClick={() =>
-                eliminarPieza(p.id)
-              }
-            >
-              Eliminar
+      {piezas.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <h3>Piezas cargadas:</h3>
+          <ul>
+            {piezas.map((p, index) => (
+              <li key={p.id}>Vidrio {index + 1}: {p.ancho} x {p.alto} mm</li>
+            ))}
+          </ul>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={procesarCortes} style={{ padding: '10px 15px', cursor: 'pointer', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
+              Generar cortes
+            </button>
+            <button onClick={limpiarLista} style={{ padding: '10px 15px', cursor: 'pointer', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px' }}>
+              Limpiar todo
             </button>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      <div style={{ marginBottom: 20 }}>
-        <button
-          onClick={generarCortes}
-          style={{
-            marginRight: 10,
-            padding: 12,
-          }}
-        >
-          Generar cortes
-        </button>
+      {resultado && (
+        <div style={{ marginTop: '30px' }}>
+          <h3>Resultado de Optimización</h3>
+          <p><strong>Placas de vidrio utilizadas:</strong> {Object.keys(hojasAgrupadas).length}</p>
 
-        <button
-          onClick={guardarPresupuesto}
-          style={{
-            marginRight: 10,
-            padding: 12,
-          }}
-        >
-          Guardar presupuesto
-        </button>
-
-        <button
-          onClick={exportarPDF}
-          style={{
-            padding: 12,
-          }}
-        >
-          Exportar PDF
-        </button>
-      </div>
-
-      {resultado.length > 0 && (
-        <div
-          style={{
-            background: "white",
-            padding: 15,
-            borderRadius: 10,
-            marginBottom: 20,
-          }}
-        >
-          <h2>Resultado</h2>
-
-          <p>
-            Hojas usadas: {
-              hojasUsadas
-            }
-          </p>
-
-          {[...new Set(
-            resultado.map(
-              (p) => p.hoja
-            )
-          )].map((hoja) => (
-            <div
-              key={hoja}
-              style={{
-                marginBottom: 40,
-              }}
-            >
-              <h3>Hoja {hoja}</h3>
-
-              <div
-                style={{
-                  position: "relative",
-                  width:
-                    ANCHO_PLANCHA *
-                    ESCALA,
-                  height:
-                    ALTO_PLANCHA *
-                    ESCALA,
-                  border:
-                    "3px solid black",
-                  background: "#e5e5e5",
-                  overflow: "hidden",
-                }}
-              >
-                {resultado
-                  .filter(
-                    (p) =>
-                      p.hoja === hoja
-                  )
-                  .map((p) => (
-                    <div
-                      key={p.id}
-                      style={{
-                        position:
-                          "absolute",
-                        left:
-                          p.x * ESCALA,
-                        top:
-                          p.y * ESCALA,
-                        width:
-                          p.ancho *
-                          ESCALA,
-                        height:
-                          p.alto *
-                          ESCALA,
-                        background:
-                          "#4da6ff",
-                        border:
-                          "1px solid black",
-                        display: "flex",
-                        justifyContent:
-                          "center",
-                        alignItems:
-                          "center",
-                        fontSize: 10,
-                        overflow:
-                          "hidden",
-                        textAlign:
-                          "center",
-                      }}
-                    >
-                      {p.ancho}x
-                      {p.alto}
-                    </div>
-                  ))}
+          {Object.keys(hojasAgrupadas).map((numHoja) => (
+            <div key={numHoja} style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '15px', background: '#f9f9f9' }}>
+              <h4>Hoja N° {numHoja}</h4>
+              <div style={{ 
+                position: 'relative', 
+                width: '720px', 
+                height: '500px', 
+                border: '3px solid #000', 
+                backgroundColor: '#e0e0e0',
+                marginBottom: '10px'
+              }}>
+                {hojasAgrupadas[numHoja].map((pieza, idx) => (
+                  <div key={idx} style={{
+                    position: 'absolute',
+                    left: `${pieza.x / 5}px`,
+                    top: `${pieza.y / 5}px`,
+                    width: `${pieza.ancho / 5}px`,
+                    height: `${pieza.alto / 5}px`,
+                    backgroundColor: '#4dabf7',
+                    border: '1px solid #0056b3',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Mostramos las medidas reales para que el operario no se confunda */}
+                    {Math.max(pieza.ancho, pieza.alto)}x{Math.min(pieza.ancho, pieza.alto)}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
         </div>
       )}
-
-      <div
-        style={{
-          background: "white",
-          padding: 15,
-          borderRadius: 10,
-        }}
-      >
-        <h2>
-          Presupuestos guardados
-        </h2>
-
-        {presupuestos.map((p) => (
-          <div
-            key={p.id}
-            style={{
-              borderBottom:
-                "1px solid #ddd",
-              padding: 10,
-              marginBottom: 5,
-            }}
-          >
-            <strong>
-              {p.cliente}
-            </strong>{" "}
-            - {p.trabajo}
-
-            <br />
-
-            <small>{p.fecha}</small>
-
-            <br />
-
-            <button
-              onClick={() =>
-                cargarPresupuesto(p)
-              }
-              style={{
-                marginTop: 5,
-                marginRight: 10,
-              }}
-            >
-              Cargar
-            </button>
-
-            <button
-              onClick={() =>
-                eliminarPresupuesto(
-                  p.id
-                )
-              }
-              style={{
-                background: "#ff4d4d",
-                color: "white",
-              }}
-            >
-              Eliminar
-            </button>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
+
+export default App;
