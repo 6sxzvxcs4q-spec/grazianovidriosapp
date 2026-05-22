@@ -41,11 +41,22 @@ function App() {
     setResultado(optimizacion);
   };
 
+  // AQUÍ ESTÁ CORREGIDO EL ERROR DE TIPEO:
+  const mandarAImprimir = () => {
+    window.print();
+  };
+
   return (
     <div className="container">
-      <h1>Optimizador de Placas - Graziano Vidrios</h1>
+      {/* Este encabezado se va a ver SÓLO en el papel o PDF impreso */}
+      <div className="print-header">
+        <h1>Graziano Vidrios - Plano de Corte</h1>
+        <p>Fecha: {new Date().toLocaleDateString('es-AR')}</p>
+      </div>
+
+      <h1 className="no-print">Optimizador de Placas - Graziano Vidrios</h1>
       
-      <div className="config-seccion">
+      <div className="config-seccion no-print">
         <label><strong>Medida de la Placa Estándar:</strong></label>
         <select value={placaSeleccionada} onChange={(e) => setPlacaSeleccionada(e.target.value)} className="select-perfil">
           <option value="3600x2500">3600 x 2500 mm</option>
@@ -55,7 +66,7 @@ function App() {
         </select>
       </div>
 
-      <form onSubmit={agregarPieza} className="form-piezas">
+      <form onSubmit={agregarPieza} className="form-piezas no-print">
         <div className="input-group">
           <label>Ancho (mm):</label>
           <input type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} placeholder="Ej: 500" />
@@ -72,7 +83,7 @@ function App() {
       </form>
 
       {piezas.length > 0 && (
-        <div className="lista-seccion">
+        <div className="lista-seccion no-print">
           <h3>Piezas cargadas ({piezas.length}):</h3>
           <ul className="lista-piezas">
             {piezas.map((p, idx) => (
@@ -89,14 +100,21 @@ function App() {
       {resultado && (
         <div className="resultado-seccion">
           <h2>Resultado de la Optimización</h2>
-          <p><strong>Placas totales necesarias:</strong> {resultado.barrasUsadas}</p>
-          <p><strong>Desperdicio estimado:</strong> {resultado.desperdicioTotal}</p>
+          <div className="resumen-datos">
+            <p><strong>Placas totales necesarias:</strong> {resultado.barrasUsadas}</p>
+            <p><strong>Desperdicio estimado:</strong> {resultado.desperdicioTotal}</p>
+          </div>
           
-          <h3>Croquis de distribución por Placa:</h3>
+          {/* Botón exclusivo para imprimir o pasar a PDF */}
+          <button onClick={mandarAImprimir} className="btn-print no-print">
+            🖨️ Imprimir / Guardar PDF
+          </button>
+          
+          <h3 className="titulo-croquis">Croquis de distribución por Placa:</h3>
           {resultado.detalles.map((placa, i) => {
             const escala = 0.18; 
             return (
-              <div key={i} className="placa-contenedor-grafico" style={{ marginBottom: '40px' }}>
+              <div key={i} className="placa-contenedor-grafico" style={{ marginBottom: '40px', pageBreakInside: 'avoid' }}>
                 <h4>Placa N° {i + 1} ({placa.ancho}x{placa.alto} mm)</h4>
                 
                 <div style={{
@@ -131,7 +149,6 @@ function App() {
                         fontWeight: 'bold', 
                         textAlign: 'center'
                       }}>
-                        {/* Muestra las medidas reales según cómo quedó orientada físicamente */}
                         {pieza.ancho}x{pieza.alto}
                       </span>
                     </div>
