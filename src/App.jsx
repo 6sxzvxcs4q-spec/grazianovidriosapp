@@ -8,7 +8,7 @@ function App() {
   const [alto, setAlto] = useState('');
   const [cantidad, setCantidad] = useState('1');
   const [precioM2, setPrecioM2] = useState(''); 
-  const [porcentajeAjuste, setPorcentajeAjuste] = useState('0'); // Estado para el % (+/-)
+  const [porcentajeAjuste, setPorcentajeAjuste] = useState('0'); 
   const [resultado, setResultado] = useState(null);
   const [placaSeleccionada, setPlacaSeleccionada] = useState("3600x2500");
 
@@ -47,7 +47,7 @@ function App() {
     window.print();
   };
 
-  // LÓGICA DE PRESUPUESTO FLEXIBLE
+  // LÓGICA DE PRESUPUESTO FLEXIBLE POR M2 NETOS
   let totalPresupuesto = null;
   if (resultado && precioM2) {
     const costoBase = resultado.areaTotalHojasM2 * Number(precioM2);
@@ -153,7 +153,7 @@ function App() {
             <p><strong>Placas totales necesarias:</strong> {resultado.barrasUsadas}</p>
             <p><strong>Desperdicio estimado del corte:</strong> {resultado.desperdicioTotal}</p>
             <p style={{ marginTop: '10px', fontSize: '16px', color: '#2c5282' }}>
-              <strong>M² totales de las placas:</strong> {resultado.areaTotalHojasM2.toFixed(2)} m²
+              <strong>M² netos del pedido:</strong> {resultado.areaTotalHojasM2.toFixed(2)} m²
             </p>
             {totalPresupuesto && (
               <div style={{ marginTop: '15px', paddingTop: '10px', borderTop: '1px dashed #bee3f8' }}>

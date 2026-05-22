@@ -1,4 +1,4 @@
-// Optimizador Limpio - Graziano Vidrios
+// Optimizador Limpio por M2 Reales - Graziano Vidrios
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
   if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [], areaTotalHojasM2: 0 };
 
@@ -16,8 +16,12 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
   });
 
   const placas = [];
+  let areaVidriosNetoM2 = 0; // Nueva variable para sumar pieza por pieza
 
   lotes.forEach(lote => {
+    // Sumamos los m² reales de este lote de piezas al total
+    areaVidriosNetoM2 += ((lote.ancho * lote.alto) / 1000000) * lote.cantidad;
+
     const cantPorColA = Math.floor(placaAlto / lote.alto);
     const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
     const totalA = cantPorColA * cantPorFilaA;
@@ -59,10 +63,6 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     }
   });
 
-  // Cálculo exacto de los m² de las hojas totales que se van a usar
-  const areaPlacaEnteraM2 = (placaAncho * placaAlto) / 1000000;
-  const areaTotalHojasM2 = placas.length * areaPlacaEnteraM2;
-
   const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
   const areaUtilizadaTotal = placas.reduce((acc, p) => {
     return acc + p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
@@ -76,7 +76,7 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     barrasUsadas: placas.length,
     desperdicioTotal: `${porcentajeDesperdicio}% (${metrosDesperdicio} m²)`,
     detalles: placas,
-    areaTotalHojasM2: areaTotalHojasM2
+    areaTotalHojasM2: areaVidriosNetoM2 // Ahora devuelve los m² netos de los vidrios cargados
   };
 }
 
