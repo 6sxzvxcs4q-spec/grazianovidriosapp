@@ -182,6 +182,7 @@
     border-right-color: var(--border);
   }
 }
+
 /* --- ESTILOS EXCLUSIVOS PARA BOTÓN DE IMPRESIÓN --- */
 .btn-print {
   background-color: #2b6cb0;
@@ -209,7 +210,6 @@
 
 /* --- REGLAS MÁGICAS PARA CUANDO SE IMPRIME O SE GUARDA EN PDF --- */
 @media print {
-  /* Oculta absolutamente todo lo que tenga la clase .no-print */
   .no-print {
     display: none !important;
   }
@@ -229,7 +229,6 @@
     margin: 0 !important;
   }
 
-  /* Muestra el membrete prolijo de Graziano Vidrios arriba del PDF */
   .print-header {
     display: block !important;
     border-bottom: 2px solid #102a43;
@@ -243,26 +242,26 @@
     color: #102a43;
   }
 
-  /* Ajustes visuales para que el gráfico salga perfecto en el papel */
   .placa-contenedor-grafico {
-    page-break-inside: avoid; /* Evita que una placa se corte a la mitad entre dos hojas */
+    page-break-inside: avoid;
   }
 
   h2, h3, h4 {
     color: black !important;
   }
 }
+
 /* --- ESTILOS DEL LOGO DE GRAZIANO VIDRIOS --- */
 .app-header {
   display: flex;
   align-items: center;
-  justifyContent: center;
+  justify-content: center; /* ¡CORREGIDO AQUÍ! */
   gap: 15px;
   margin-bottom: 30px;
 }
 
 .logo-app {
-  height: 60px; /* Tamaño ideal para que no moleste */
+  height: 60px;
   width: auto;
   object-fit: contain;
 }
@@ -275,6 +274,6 @@
 
 @media print {
   .logo-app {
-    height: 50px; /* Un toque más chico para el papel */
+    height: 50px;
   }
 }
