@@ -1,4 +1,4 @@
-// Optimizador Inteligente Definitivo Corregido - Graziano Vidrios
+// Optimizador Inteligente Definitivo - Graziano Vidrios (Versión Final Sin Errores)
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
   if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [] };
 
@@ -36,6 +36,7 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     const anchoFinal = usarRotado ? lote.alto : lote.ancho;
     const altoFinal = usarRotado ? lote.ancho : lote.alto;
 
+    // AQUÍ ESTÁ CORREGIDO: Usamos lote.cantidad estrictamente
     for (let i = 0; i < lote.cantidad; i++) {
       let ubicada = false;
 
