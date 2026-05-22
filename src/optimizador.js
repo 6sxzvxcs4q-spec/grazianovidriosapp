@@ -1,92 +1,120 @@
-// Optimizador de cortes en 2D con ROTACIÓN automática de piezas
+// Optimizador Inteligente con Evaluación de Orientación Óptima por Lotes
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
-  // Ordenar piezas de mayor a menor superficie
-  const piezasOrdenadas = [...piezas].sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
-  
-  const placasUsadas = [];
+  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0 m²", detalles: [] };
 
-  piezasOrdenadas.forEach((pieza) => {
-    let ubicada = false;
+  // 1. Agrupar piezas que tengan las mismas medidas para tratarlas como un lote
+  const lotes = [];
+  piezas.forEach(pieza => {
+    const loteExistente = lotes.find(l => 
+      (l.ancho === pieza.ancho && l.alto === pieza.alto) || 
+      (l.ancho === pieza.alto && l.alto === pieza.ancho)
+    );
+    if (loteExistente) {
+      loteExistente.cantidad++;
+    } else {
+      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, cantidad: 1 });
+    }
+  });
 
-    // 1. Intentar ubicarla en las placas que ya abrimos
-    for (let placa of placasUsadas) {
-      if (intentarUbicarConRotacion(placa, pieza)) {
-        ubicada = true;
-        break;
-      }
+  const placas = [];
+
+  // Desempaquetar los lotes decidiendo la mejor orientación para cada uno
+  lotes.forEach(lote => {
+    // Probar Orientación A (Normal)
+    const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
+    const cantPorColA = Math.floor(placaAlto / lote.alto);
+    const totalOrientacionA = cantPorFilaA * cantPorColA;
+
+    // Probar Orientación B (Rotada)
+    const cantPorFilaB = Math.floor(placaAncho / lote.alto);
+    const cantPorColB = Math.floor(placaAlto / lote.ancho);
+    const totalOrientacionB = cantPorFilaB * cantPorColB;
+
+    // Elegimos la orientación que meta más piezas o que aproveche mejor el ancho
+    let usarRotado = false;
+    if (totalOrientacionB > totalOrientacionA) {
+      usarRotado = true;
+    } else if (totalOrientacionB === totalOrientacionA) {
+      // Si entra la misma cantidad, preferimos la que deje menos retazo en el ancho principal
+      const residuoA = placaAncho % lote.ancho;
+      const residuoB = placaAncho % lote.alto;
+      if (residuoB < residuoA) usarRotado = true;
     }
 
-    // 2. Si no cupo, abrimos una placa nueva
-    if (!ubicada) {
-      const nuevaPlaca = {
-        ancho: placaAncho,
-        alto: placaAlto,
-        piezasUbicadas: []
-      };
-      
-      if (intentarUbicarConRotacion(nuevaPlaca, pieza)) {
-        placasUsadas.push(nuevaPlaca);
-      } else {
-        console.error("La pieza es demasiado grande para la placa.");
+    const anchoFinal = usarRotado ? lote.alto : lote.ancho;
+    const altoFinal = usarRotado ? lote.ancho : lote.alto;
+
+    // Generar la lista de piezas ya orientadas de la forma más eficiente
+    for (let i = 0; i < lote.cantidad; i++) {
+      let ubicada = false;
+
+      // Intentar ubicar en placas existentes
+      for (let placa of placas) {
+        if (acomodarEnPlaca(placa, anchoFinal, altoFinal, usarRotado)) {
+          ubicada = true;
+          break;
+        }
+      }
+
+      // Si no entra, abrir placa nueva
+      if (!ubicada) {
+        const nuevaPlaca = {
+          ancho: placaAncho,
+          alto: placaAlto,
+          piezasUbicadas: [],
+          franjas: []
+        };
+        acomodarEnPlaca(nuevaPlaca, anchoFinal, altoFinal, usarRotado);
+        placas.push(nuevaPlaca);
       }
     }
   });
 
-  const desperdicioTotal = placasUsadas.reduce((acc, p) => {
+  const desperdicioTotal = placas.reduce((acc, p) => {
     const areaPlaca = p.ancho * p.alto;
     const areaUtilizada = p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
     return acc + (areaPlaca - areaUtilizada);
   }, 0);
 
   return {
-    barrasUsadas: placasUsadas.length,
-    desperdicioTotal: (desperdicioTotal / 1000000).toFixed(2) + " m²",
-    detalles: placasUsadas
+    barrasUsadas: placas.length,
+    desperidcioTotal: (desperidcioTotal / 1000000).toFixed(2) + " m²",
+    detalles: placas
   };
 }
 
-function intentarUbicarConRotacion(placa, pieza) {
-  // Primero intentamos ponerla en la orientación original
-  if (buscarHuecoYUbicar(placa, pieza.ancho, pieza.alto, false)) {
-    return true;
-  }
-  // Si no entra, probamos rotándola 90 grados (intercambiando ancho por alto)
-  if (buscarHuecoYUbicar(placa, pieza.alto, pieza.ancho, true)) {
-    return true;
-  }
-  return false;
-}
-
-function buscarHuecoYUbicar(placa, ancho, alto, rotada) {
-  // Escaneo por coordenadas buscando un punto libre (pasos de 10mm para más precisión)
-  for (let y = 0; y <= placa.alto - alto; y += 10) {
-    for (let x = 0; x <= placa.ancho - ancho; x += 10) {
-      
-      let solapa = false;
-      for (let otra of placa.piezasUbicadas) {
-        if (
-          x < otra.x + otra.ancho &&
-          x + ancho > otra.x &&
-          y < otra.y + otra.alto &&
-          y + alto > otra.y
-        ) {
-          solapa = true;
-          break;
-        }
-      }
-
-      if (!solapa) {
-        // Encontramos lugar físico estable
-        placa.piezasUbicadas.push({
-          ancho: ancho,
-          alto: alto,
-          x: x,
-          y: y,
-          rotada: rotada
-        });
-        return true;
-      }
+function acomodarEnPlaca(placa, ancho, alto, rotada) {
+  // Buscar en franjas existentes de la placa
+  for (let franja of placa.franjas) {
+    if (alto <= franja.alto && (franja.xActual + ancho) <= placa.ancho) {
+      placa.piezasUbicadas.push({
+        ancho: ancho,
+        alto: alto,
+        x: franja.xActual,
+        y: franja.y,
+        rotada: rotada
+      });
+      franja.xActual += ancho;
+      return true;
     }
   }
+
+  // Si no cupo en ninguna franja, crear una nueva franja arriba de la última
+  const ySiguiente = placa.franjas.length > 0 
+    ? placa.franjas[placa.franjas.length - 1].y + placa.franjas[placa.franjas.length - 1].alto
+    : 0;
+
+  if (ySiguiente + alto <= placa.alto && ancho <= placa.ancho) {
+    placa.franjas.push({ y: ySiguiente, alto: alto, xActual: ancho });
+    placa.piezasUbicadas.push({
+      ancho: ancho,
+      alto: alto,
+      x: 0,
+      y: ySiguiente,
+      rotada: rotada
+    });
+    return true;
+  }
+
   return false;
 }
