@@ -8,8 +8,6 @@ function App() {
   const [alto, setAlto] = useState('');
   const [cantidad, setCantidad] = useState('1');
   const [resultado, setResultado] = useState(null);
-  
-  // Guardamos la placa seleccionada como un objeto {ancho, alto}
   const [placaSeleccionada, setPlacaSeleccionada] = useState("3600x2500");
 
   const agregarPieza = (e) => {
@@ -38,7 +36,6 @@ function App() {
 
   const procesarCortes = () => {
     if (piezas.length === 0) return;
-    
     const [pAncho, pAlto] = placaSeleccionada.split('x').map(Number);
     const optimizacion = optimizarCortes(piezas, pAncho, pAlto);
     setResultado(optimizacion);
@@ -50,11 +47,7 @@ function App() {
       
       <div className="config-seccion">
         <label><strong>Medida de la Placa Estándar:</strong></label>
-        <select 
-          value={placaSeleccionada} 
-          onChange={(e) => setPlacaSeleccionada(e.target.value)}
-          className="select-perfil"
-        >
+        <select value={placaSeleccionada} onChange={(e) => setPlacaSeleccionada(e.target.value)} className="select-perfil">
           <option value="3600x2500">3600 x 2500 mm</option>
           <option value="1600x2500">1600 x 2500 mm</option>
           <option value="1600x3000">1600 x 3000 mm</option>
@@ -64,11 +57,11 @@ function App() {
 
       <form onSubmit={agregarPieza} className="form-piezas">
         <div className="input-group">
-          <label>Ancho del Vidrio (mm):</label>
+          <label>Ancho (mm):</label>
           <input type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} placeholder="Ej: 500" />
         </div>
         <div className="input-group">
-          <label>Alto del Vidrio (mm):</label>
+          <label>Alto (mm):</label>
           <input type="number" value={alto} onChange={(e) => setAlto(e.target.value)} placeholder="Ej: 800" />
         </div>
         <div className="input-group">
@@ -101,23 +94,21 @@ function App() {
           
           <h3>Croquis de distribución por Placa:</h3>
           {resultado.detalles.map((placa, i) => {
-            // Escala visual para que el dibujo quepa en la pantalla del celular o pc
-            const escala = 0.15; 
+            const escala = 0.18; 
             return (
-              <div key={i} className="placa-contenedor-grafico" style={{ marginBottom: '30px' }}>
+              <div key={i} className="placa-contenedor-grafico" style={{ marginBottom: '40px' }}>
                 <h4>Placa N° {i + 1} ({placa.ancho}x{placa.alto} mm)</h4>
                 
-                {/* Contenedor que simula la placa de vidrio de fondo */}
                 <div style={{
                   position: 'relative',
                   width: `${placa.ancho * escala}px`,
                   height: `${placa.alto * escala}px`,
-                  backgroundColor: '#e0f2f1',
-                  border: '2px solid #004d40',
-                  borderRadius: '4px',
+                  backgroundColor: '#f0f4f8',
+                  border: '3px solid #102a43',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
                   overflow: 'hidden'
                 }}>
-                  {/* Dibujar cada vidrio recortado adentro */}
                   {placa.piezasUbicadas.map((pieza, idx) => (
                     <div key={idx} style={{
                       position: 'absolute',
@@ -125,17 +116,24 @@ function App() {
                       top: `${pieza.y * escala}px`,
                       width: `${pieza.ancho * escala}px`,
                       height: `${pieza.alto * escala}px`,
-                      backgroundColor: '#4db6ac',
-                      border: '1px solid #00796b',
+                      backgroundColor: '#1982c4',
+                      border: '1px solid #023e8a',
                       color: 'white',
-                      fontSize: '10px',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      boxSizing: 'border-box',
+                      padding: '2px'
                     }}>
-                      <span>{pieza.ancho}x{pieza.alto}</span>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        fontWeight: 'bold', 
+                        textAlign: 'center'
+                      }}>
+                        {/* Muestra las medidas reales según cómo quedó orientada físicamente */}
+                        {pieza.ancho}x{pieza.alto}
+                      </span>
                     </div>
                   ))}
                 </div>
