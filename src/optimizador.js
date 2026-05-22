@@ -1,4 +1,4 @@
-// Optimizador Inteligente Definitivo - Graziano Vidrios
+// Optimizador Inteligente Definitivo Corregido - Graziano Vidrios
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
   if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [] };
 
@@ -11,7 +11,7 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     if (loteExistente) {
       loteExistente.cantidad++;
     } else {
-      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, quantity: 1 });
+      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, cantidad: 1 });
     }
   });
 
@@ -36,7 +36,7 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     const anchoFinal = usarRotado ? lote.alto : lote.ancho;
     const altoFinal = usarRotado ? lote.ancho : lote.alto;
 
-    for (let i = 0; i < lote.quantity; i++) {
+    for (let i = 0; i < lote.cantidad; i++) {
       let ubicada = false;
 
       for (let placa of placas) {
@@ -59,7 +59,7 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     }
   });
 
-  // CORRECCIÓN MATEMÁTICA DEL DESPERDICIO
+  // Cuenta matemática exacta del desperdicio
   const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
   const areaUtilizadaTotal = placas.reduce((acc, p) => {
     return acc + p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
