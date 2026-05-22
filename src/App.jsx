@@ -41,20 +41,28 @@ function App() {
     setResultado(optimizacion);
   };
 
-  // AQUÍ ESTÁ CORREGIDO EL ERROR DE TIPEO:
   const mandarAImprimir = () => {
     window.print();
   };
 
   return (
     <div className="container">
-      {/* Este encabezado se va a ver SÓLO en el papel o PDF impreso */}
+      {/* Encabezado exclusivo para el PDF impreso */}
       <div className="print-header">
-        <h1>Graziano Vidrios - Plano de Corte</h1>
-        <p>Fecha: {new Date().toLocaleDateString('es-AR')}</p>
+        <div className="header-logo-container">
+          <img src="/logo.jpg" alt="Graziano Vidrios Logo" className="logo-app" onError={(e) => e.target.style.display='none'} />
+          <div>
+            <h1>Graziano Vidrios - Plano de Corte</h1>
+            <p>Fecha: {new Date().toLocaleDateString('es-AR')}</p>
+          </div>
+        </div>
       </div>
 
-      <h1 className="no-print">Optimizador de Placas - Graziano Vidrios</h1>
+      {/* Encabezado para la pantalla de la computadora */}
+      <div className="app-header no-print">
+        <img src="/logo.jpg" alt="Graziano Vidrios Logo" className="logo-app" onError={(e) => e.target.style.display='none'} />
+        <h1>Optimizador de Placas - Graziano Vidrios</h1>
+      </div>
       
       <div className="config-seccion no-print">
         <label><strong>Medida de la Placa Estándar:</strong></label>
@@ -105,7 +113,6 @@ function App() {
             <p><strong>Desperdicio estimado:</strong> {resultado.desperdicioTotal}</p>
           </div>
           
-          {/* Botón exclusivo para imprimir o pasar a PDF */}
           <button onClick={mandarAImprimir} className="btn-print no-print">
             🖨️ Imprimir / Guardar PDF
           </button>

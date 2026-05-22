@@ -252,3 +252,29 @@
     color: black !important;
   }
 }
+/* --- ESTILOS DEL LOGO DE GRAZIANO VIDRIOS --- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justifyContent: center;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.logo-app {
+  height: 60px; /* Tamaño ideal para que no moleste */
+  width: auto;
+  object-fit: contain;
+}
+
+.header-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+@media print {
+  .logo-app {
+    height: 50px; /* Un toque más chico para el papel */
+  }
+}
