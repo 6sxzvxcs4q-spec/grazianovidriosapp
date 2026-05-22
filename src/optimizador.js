@@ -1,4 +1,4 @@
-// Optimizador Inteligente Definitivo - Graziano Vidrios (Versión Final Sin Errores)
+// Optimizador Inteligente - Graziano Vidrios (Prioridad Manipulación Manual de Retazos)
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
   if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [] };
 
@@ -18,30 +18,31 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
   const placas = [];
 
   lotes.forEach(lote => {
-    const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
+    // Forzamos la orientación para que las piezas se acomoden optimizando el Alto (manipulación de 2500)
     const cantPorColA = Math.floor(placaAlto / lote.alto);
-    const totalA = cantPorFilaA * cantPorColA;
+    const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
+    const totalA = cantPorColA * cantPorFilaA;
 
-    const cantPorFilaB = Math.floor(placaAncho / lote.alto);
     const cantPorColB = Math.floor(placaAlto / lote.ancho);
-    const totalB = cantPorFilaB * cantPorColB;
+    const cantPorFilaB = Math.floor(placaAncho / lote.alto);
+    const totalB = cantPorColB * cantPorFilaB;
 
     let usarRotado = false;
     if (totalB > totalA) {
       usarRotado = true;
     } else if (totalB === totalA) {
-      if ((placaAncho % lote.alto) < (placaAncho % lote.ancho)) usarRotado = true;
+      // Si entra lo mismo, preferimos la que use mejor la altura de 2500
+      if ((placaAlto % lote.ancho) < (placaAlto % lote.alto)) usarRotado = true;
     }
 
     const anchoFinal = usarRotado ? lote.alto : lote.ancho;
     const altoFinal = usarRotado ? lote.ancho : lote.alto;
 
-    // AQUÍ ESTÁ CORREGIDO: Usamos lote.cantidad estrictamente
     for (let i = 0; i < lote.cantidad; i++) {
       let ubicada = false;
 
       for (let placa of placas) {
-        if (acomodarEnPlaca(placa, anchoFinal, altoFinal, usarRotado)) {
+        if (acomodarEnPlacaVertical(placa, anchoFinal, altoFinal, usarRotado)) {
           ubicada = true;
           break;
         }
@@ -52,15 +53,14 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
           ancho: placaAncho,
           alto: placaAlto,
           piezasUbicadas: [],
-          franjas: []
+          columnas: [] // Cambiamos franjas horizontales por columnas verticales
         };
-        acomodarEnPlaca(nuevaPlaca, anchoFinal, altoFinal, usarRotado);
+        acomodarEnPlacaVertical(nuevaPlaca, anchoFinal, altoFinal, usarRotado);
         placas.push(nuevaPlaca);
       }
     }
   });
 
-  // Cuenta matemática exacta del desperdicio
   const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
   const areaUtilizadaTotal = placas.reduce((acc, p) => {
     return acc + p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
@@ -77,32 +77,34 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
   };
 }
 
-function acomodarEnPlaca(placa, ancho, alto, rotada) {
-  for (let franja of placa.franjas) {
-    if (alto <= franja.alto && (franja.xActual + ancho) <= placa.ancho) {
+function acomodarEnPlacaVertical(placa, ancho, alto, rotada) {
+  // Buscar en columnas verticales existentes
+  for (let col of placa.columnas) {
+    if (ancho <= col.ancho && (col.yActual + alto) <= placa.alto) {
       placa.piezasUbicadas.push({
         ancho: ancho,
         alto: alto,
-        x: franja.xActual,
-        y: franja.y,
+        x: col.x,
+        y: col.yActual,
         rotada: rotada
       });
-      franja.xActual += ancho;
+      col.yActual += alto;
       return true;
     }
   }
 
-  const ySiguiente = placa.franjas.length > 0 
-    ? placa.franjas[placa.franjas.length - 1].y + placa.franjas[placa.franjas.length - 1].alto
+  // Crear una nueva columna hacia la derecha si no entra en las anteriores
+  const xSiguiente = placa.columnas.length > 0 
+    ? placa.columnas[placa.columnas.length - 1].x + placa.columnas[placa.columnas.length - 1].ancho
     : 0;
 
-  if (ySiguiente + alto <= placa.alto && ancho <= placa.ancho) {
-    placa.franjas.push({ y: ySiguiente, alto: alto, xActual: ancho });
+  if (xSiguiente + ancho <= placa.ancho && alto <= placa.alto) {
+    placa.columnas.push({ x: xSiguiente, ancho: ancho, yActual: alto });
     placa.piezasUbicadas.push({
       ancho: ancho,
       alto: alto,
-      x: 0,
-      y: ySiguiente,
+      x: xSiguiente,
+      y: 0,
       rotada: rotada
     });
     return true;
