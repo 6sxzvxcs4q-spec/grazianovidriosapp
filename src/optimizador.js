@@ -1,8 +1,7 @@
-// Optimizador Inteligente con Evaluación de Orientación Óptima por Lotes
+// Optimizador Inteligente Definitivo - Graziano Vidrios
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
-  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0 m²", detalles: [] };
+  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [] };
 
-  // 1. Agrupar piezas que tengan las mismas medidas para tratarlas como un lote
   const lotes = [];
   piezas.forEach(pieza => {
     const loteExistente = lotes.find(l => 
@@ -12,43 +11,34 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     if (loteExistente) {
       loteExistente.cantidad++;
     } else {
-      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, cantidad: 1 });
+      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, quantity: 1 });
     }
   });
 
   const placas = [];
 
-  // Desempaquetar los lotes decidiendo la mejor orientación para cada uno
   lotes.forEach(lote => {
-    // Probar Orientación A (Normal)
     const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
     const cantPorColA = Math.floor(placaAlto / lote.alto);
-    const totalOrientacionA = cantPorFilaA * cantPorColA;
+    const totalA = cantPorFilaA * cantPorColA;
 
-    // Probar Orientación B (Rotada)
     const cantPorFilaB = Math.floor(placaAncho / lote.alto);
     const cantPorColB = Math.floor(placaAlto / lote.ancho);
-    const totalOrientacionB = cantPorFilaB * cantPorColB;
+    const totalB = cantPorFilaB * cantPorColB;
 
-    // Elegimos la orientación que meta más piezas o que aproveche mejor el ancho
     let usarRotado = false;
-    if (totalOrientacionB > totalOrientacionA) {
+    if (totalB > totalA) {
       usarRotado = true;
-    } else if (totalOrientacionB === totalOrientacionA) {
-      // Si entra la misma cantidad, preferimos la que deje menos retazo en el ancho principal
-      const residuoA = placaAncho % lote.ancho;
-      const residuoB = placaAncho % lote.alto;
-      if (residuoB < residuoA) usarRotado = true;
+    } else if (totalB === totalA) {
+      if ((placaAncho % lote.alto) < (placaAncho % lote.ancho)) usarRotado = true;
     }
 
     const anchoFinal = usarRotado ? lote.alto : lote.ancho;
     const altoFinal = usarRotado ? lote.ancho : lote.alto;
 
-    // Generar la lista de piezas ya orientadas de la forma más eficiente
-    for (let i = 0; i < lote.cantidad; i++) {
+    for (let i = 0; i < lote.quantity; i++) {
       let ubicada = false;
 
-      // Intentar ubicar en placas existentes
       for (let placa of placas) {
         if (acomodarEnPlaca(placa, anchoFinal, altoFinal, usarRotado)) {
           ubicada = true;
@@ -56,7 +46,6 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
         }
       }
 
-      // Si no entra, abrir placa nueva
       if (!ubicada) {
         const nuevaPlaca = {
           ancho: placaAncho,
@@ -70,21 +59,24 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     }
   });
 
-  const desperdicioTotal = placas.reduce((acc, p) => {
-    const areaPlaca = p.ancho * p.alto;
-    const areaUtilizada = p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
-    return acc + (areaPlaca - areaUtilizada);
+  // CORRECCIÓN MATEMÁTICA DEL DESPERDICIO
+  const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
+  const areaUtilizadaTotal = placas.reduce((acc, p) => {
+    return acc + p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
   }, 0);
+  
+  const areaDesperdicio = areaPlacaTotal - areaUtilizadaTotal;
+  const porcentajeDesperdicio = ((areaDesperdicio / areaPlacaTotal) * 100).toFixed(1);
+  const metrosDesperdicio = (areaDesperdicio / 1000000).toFixed(2);
 
   return {
     barrasUsadas: placas.length,
-    desperidcioTotal: (desperidcioTotal / 1000000).toFixed(2) + " m²",
+    desperdicioTotal: `${porcentajeDesperdicio}% (${metrosDesperdicio} m²)`,
     detalles: placas
   };
 }
 
 function acomodarEnPlaca(placa, ancho, alto, rotada) {
-  // Buscar en franjas existentes de la placa
   for (let franja of placa.franjas) {
     if (alto <= franja.alto && (franja.xActual + ancho) <= placa.ancho) {
       placa.piezasUbicadas.push({
@@ -99,7 +91,6 @@ function acomodarEnPlaca(placa, ancho, alto, rotada) {
     }
   }
 
-  // Si no cupo en ninguna franja, crear una nueva franja arriba de la última
   const ySiguiente = placa.franjas.length > 0 
     ? placa.franjas[placa.franjas.length - 1].y + placa.franjas[placa.franjas.length - 1].alto
     : 0;
