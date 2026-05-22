@@ -1,6 +1,6 @@
-// Optimizador Inteligente - Graziano Vidrios (Prioridad Manipulación Manual de Retazos)
+// Optimizador Limpio - Graziano Vidrios
 export function optimizarCortes(piezas, placaAncho, placaAlto) {
-  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [] };
+  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [], areaTotalHojasM2: 0 };
 
   const lotes = [];
   piezas.forEach(pieza => {
@@ -18,7 +18,6 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
   const placas = [];
 
   lotes.forEach(lote => {
-    // Forzamos la orientación para que las piezas se acomoden optimizando el Alto (manipulación de 2500)
     const cantPorColA = Math.floor(placaAlto / lote.alto);
     const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
     const totalA = cantPorColA * cantPorFilaA;
@@ -31,7 +30,6 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
     if (totalB > totalA) {
       usarRotado = true;
     } else if (totalB === totalA) {
-      // Si entra lo mismo, preferimos la que use mejor la altura de 2500
       if ((placaAlto % lote.ancho) < (placaAlto % lote.alto)) usarRotado = true;
     }
 
@@ -53,13 +51,17 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
           ancho: placaAncho,
           alto: placaAlto,
           piezasUbicadas: [],
-          columnas: [] // Cambiamos franjas horizontales por columnas verticales
+          columnas: []
         };
         acomodarEnPlacaVertical(nuevaPlaca, anchoFinal, altoFinal, usarRotado);
         placas.push(nuevaPlaca);
       }
     }
   });
+
+  // Cálculo exacto de los m² de las hojas totales que se van a usar
+  const areaPlacaEnteraM2 = (placaAncho * placaAlto) / 1000000;
+  const areaTotalHojasM2 = placas.length * areaPlacaEnteraM2;
 
   const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
   const areaUtilizadaTotal = placas.reduce((acc, p) => {
@@ -73,12 +75,12 @@ export function optimizarCortes(piezas, placaAncho, placaAlto) {
   return {
     barrasUsadas: placas.length,
     desperdicioTotal: `${porcentajeDesperdicio}% (${metrosDesperdicio} m²)`,
-    detalles: placas
+    detalles: placas,
+    areaTotalHojasM2: areaTotalHojasM2
   };
 }
 
 function acomodarEnPlacaVertical(placa, ancho, alto, rotada) {
-  // Buscar en columnas verticales existentes
   for (let col of placa.columnas) {
     if (ancho <= col.ancho && (col.yActual + alto) <= placa.alto) {
       placa.piezasUbicadas.push({
@@ -93,7 +95,6 @@ function acomodarEnPlacaVertical(placa, ancho, alto, rotada) {
     }
   }
 
-  // Crear una nueva columna hacia la derecha si no entra en las anteriores
   const xSiguiente = placa.columnas.length > 0 
     ? placa.columnas[placa.columnas.length - 1].x + placa.columnas[placa.columnas.length - 1].ancho
     : 0;
