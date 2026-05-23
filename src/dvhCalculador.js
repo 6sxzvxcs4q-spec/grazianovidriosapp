@@ -1,4 +1,4 @@
-// Calculador Avanzado Desglosado de DVH - Graziano Vidrios
+// Calculador Avanzado Desglosado de DVH (Corregido) - Graziano Vidrios
 export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML) {
   let totalM2VidrioExt = 0;
   let totalM2VidrioInt = 0;
@@ -12,21 +12,22 @@ export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, p
     const areaPaño = anchoM * altoM;
     const perimetroPaño = (anchoM * 2) + (altoM * 2);
 
-    // Acumuladores físicos
-    totalM2VidrioExt += areaPaño * paño.cantidad;
-    totalM2VidrioInt += areaPaño * paño.cantidad;
-    totalMetrosPerfil += perimetroPaño * paño.cantidad;
+    // Sumamos de forma acumulativa usando += para CADA paño de la lista
+    totalM2VidrioExt += (areaPaño * paño.cantidad);
+    totalM2VidrioInt += (areaPaño * paño.cantidad);
+    totalMetrosPerfil += (perimetroPaño * paño.cantidad);
     totalPaños += paño.cantidad;
 
-    // Cálculo de costo base de este paño específico
+    // Cálculo de costo base de este paño específico multiplicado por su cantidad
     const costoVidrioExt = areaPaño * Number(precioVidrioExt);
     const costoVidrioInt = areaPaño * Number(precioVidrioInt);
     const costoCamara = perimetroPaño * Number(precioCamaraML);
     
+    // Sumamos al gran total de la obra
     costoSubtotalInsumos += (costoVidrioExt + costoVidrioInt + costoCamara) * paño.cantidad;
   });
 
-  // Aplicamos el 15% de desperdicio fijo solicitado sobre el costo de los materiales
+  // Aplicamos el 15% de desperdicio fijo sobre el costo total acumulado
   const factorDesperdicio = 1.15;
   const costoConDesperdicio = costoSubtotalInsumos * factorDesperdicio;
 
