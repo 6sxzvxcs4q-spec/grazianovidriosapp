@@ -49,8 +49,7 @@ function App() {
     window.print();
   };
 
-  // PROCESADOR DE TOTALES GENERALES CORREGIDO
-  // Usamos la lógica de dvhCalculador pasándole los estados de precio correctos
+  // PROCESADOR DE TOTALES GENERALES
   const totales = calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML);
 
   // Cálculo del presupuesto comercial definitivo para el bloque de abajo
@@ -65,9 +64,11 @@ function App() {
     });
   }
 
-  // Función interna para calcular el precio unitario de una sola unidad en la fila
-  const obtenerPrecioUnitarioItem = (p) => {
-    if (!precioVidrioExt || !precioVidrioInt || !precioCamaraML) return "$ 0,00";
+  // Función interna para calcular los precios de la fila (Unitario y Subtotal)
+  const obtenerPreciosItem = (p) => {
+    if (!precioVidrioExt || !precioVidrioInt || !precioCamaraML) {
+      return { unitario: "$ 0,00", subtotal: "$ 0,00" };
+    }
     
     const anchoM = p.ancho / 1000;
     const altoM = p.alto / 1000;
@@ -78,12 +79,14 @@ function App() {
     // Agregamos el 15% de desperdicio fijo y el ajuste comercial de arriba
     const costoConDesperdicio = costoInsumosBase * 1.15;
     const factorAjuste = 1 + (Number(porcentajeAjuste) / 100);
+    
     const precioFinalUnitario = costoConDesperdicio * factorAjuste;
+    const precioFinalSubtotal = precioFinalUnitario * p.cantidad;
 
-    return precioFinalUnitario.toLocaleString('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    });
+    return {
+      unitario: precioFinalUnitario.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }),
+      subtotal: precioFinalSubtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+    };
   };
 
   return (
@@ -188,26 +191,31 @@ function App() {
                 <th style={{ padding: '10px' }}>Cant</th>
                 <th style={{ padding: '10px' }}>Medidas (mm)</th>
                 <th style={{ padding: '10px' }}>Estructura DVH</th>
-                <th style={{ padding: '10px' }}>Precio Unit. c/Desp.</th>
+                <th style={{ padding: '10px' }}>Precio Unit.</th>
+                <th style={{ padding: '10px' }}>Subtotal Item</th>
                 <th style={{ padding: '10px' }} className="no-print">Acción</th>
               </tr>
             </thead>
             <tbody>
-              {listaPaños.map((p) => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '10px' }}><strong>{p.cantidad}</strong></td>
-                  <td style={{ padding: '10px' }}>{p.ancho} x {p.alto} mm</td>
-                  <td style={{ padding: '10px' }}><span style={{ color: '#023e8a', fontWeight: '500' }}>{p.vidrioExt} + C{p.camara} + {p.vidrioInt}</span></td>
-                  <td style={{ padding: '10px', color: '#2b6cb0', fontWeight: 'bold' }}>{obtenerPrecioUnitarioItem(p)}</td>
-                  <td style={{ padding: '10px' }} className="no-print">
-                    <button onClick={() => eliminarPaño(p.id)} style={{ backgroundColor: '#e63946', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Quitar</button>
-                  </td>
-                </tr>
-              ))}
+              {listaPaños.map((p) => {
+                const precios = obtenerPreciosItem(p);
+                return (
+                  <tr key={p.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '10px' }}><strong>{p.cantidad}</strong></td>
+                    <td style={{ padding: '10px' }}>{p.ancho} x {p.alto} mm</td>
+                    <td style={{ padding: '10px' }}><span style={{ color: '#023e8a', fontWeight: '500' }}>{p.vidrioExt} + C{p.camara} + {p.vidrioInt}</span></td>
+                    <td style={{ padding: '10px', color: '#4a5568' }}>{precios.unitario}</td>
+                    <td style={{ padding: '10px', color: '#2b6cb0', fontWeight: 'bold' }}>{precios.subtotal}</td>
+                    <td style={{ padding: '10px' }} className="no-print">
+                      <button onClick={() => eliminarPaño(p.id)} style={{ backgroundColor: '#e63946', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Quitar</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
-          {/* DESGLOSE Y PRESUPUESTO FINAL CORREGIDOS */}
+          {/* DESGLOSE Y PRESUPUESTO FINAL */}
           <div className="resumen-datos" style={{ backgroundColor: '#ebf8ff', padding: '20px', borderRadius: '8px', borderLeft: '5px solid #2b6cb0' }}>
             <h2 style={{ color: '#2c5282', marginTop: 0 }}>Cómputo Técnico y Resumen</h2>
             <p><strong>Unidades totales a fabricar:</strong> {totales.totalPaños} paños</p>
@@ -215,31 +223,4 @@ function App() {
             <p><strong>M² Netos Vidrio Interior:</strong> {totales.totalM2VidrioInt} m²</p>
             <p><strong>Metros lineales de Cámara/Perfil:</strong> {totales.totalMetrosPerfil} ML</p>
             <p style={{ color: '#4a5568', fontSize: '13px', fontStyle: 'italic', marginTop: '5px' }}>
-              * El sistema incluye automáticamente un +15% por desperdicio de corte en los valores finales.
-            </p>
-            
-            {totalPresupuestoFinal && (
-              <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px dashed #bee3f8' }}>
-                {Number(porcentajeAjuste) !== 0 && (
-                  <p style={{ fontSize: '14px', color: '#4a5568', margin: '0 0 5px 0' }}> Margen de Obra: {Number(porcentajeAjuste) > 0 ? `+${porcentajeAjuste}` : porcentajeAjuste}%</p>
-                )}
-                <p style={{ fontSize: '26px', color: '#2f855a', margin: 0 }}>
-                  <strong>PRESUPUESTO FINAL TOTAL: {totalPresupuestoFinal}</strong>
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="acciones-recuadro no-print" style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
-            <button onClick={mandarAImprimir} className="btn-optimizar" style={{ flex: 1, padding: '12px', fontSize: '16px' }}>
-              🖨️ Imprimir / Guardar PDF
-            </button>
-            <button onClick={limpiarObra} className="btn-limpiar">Borrar Todo</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default App;
+              * El sistema incluye automáticamente un +15% por desperdicio de
