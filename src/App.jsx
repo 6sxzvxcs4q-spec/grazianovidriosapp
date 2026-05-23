@@ -49,10 +49,10 @@ function App() {
     window.print();
   };
 
-  // Procesamos los números y costos desglosados de la obra
+  // Procesamos los números generales
   const totales = calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML);
 
-  // Cálculo del presupuesto comercial definitivo
+  // Cálculo del presupuesto comercial definitivo para el bloque de abajo
   let totalPresupuestoFinal = null;
   if (totales.costoConDesperdicio > 0) {
     const factorAjusteComercial = 1 + (Number(porcentajeAjuste) / 100);
@@ -63,6 +63,27 @@ function App() {
       currency: 'ARS'
     });
   }
+
+  // Función interna para calcular el precio unitario de una fila en la tabla
+  const obtenerPrecioUnitarioItem = (p) => {
+    if (!precioVidrioExt || !precioVidrioInt || !precioCamaraML) return "$ 0,00";
+    
+    const anchoM = p.ancho / 1000;
+    const altoM = p.alto / 1000;
+    const area = anchoM * altoM;
+    const perimetro = (anchoM * 2) + (altoM * 2);
+
+    const costoInsumosBase = (area * Number(precioVidrioExt)) + (area * Number(precioVidrioInt)) + (perimetro * Number(precioCamaraML));
+    // Agregamos el 15% de desperdicio y el ajuste comercial de arriba
+    const costoConDesperdicio = costoInsumosBase * 1.15;
+    const factorAjuste = 1 + (Number(porcentajeAjuste) / 100);
+    const precioFinalUnitario = costoConDesperdicio * factorAjuste;
+
+    return precioFinalUnitario.toLocaleString('es-AR', {
+      style: 'currency',
+      currency: 'ARS'
+    });
+  };
 
   return (
     <div className="container">
@@ -106,7 +127,7 @@ function App() {
         </div>
       </div>
 
-      {/* FORMULARIO DE CARGA CONTINUA (PARA IR AGREGANDO MEDIDAS) */}
+      {/* FORMULARIO DE CARGA CONTINUA */}
       <form onSubmit={agregarPaño} className="form-piezas no-print" style={{ marginBottom: '25px' }}>
         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', width: '100%' }}>
           <div className="input-group">
@@ -166,6 +187,7 @@ function App() {
                 <th style={{ padding: '10px' }}>Cant</th>
                 <th style={{ padding: '10px' }}>Medidas (mm)</th>
                 <th style={{ padding: '10px' }}>Estructura DVH</th>
+                <th style={{ padding: '10px' }}>Precio Unit. c/Desp.</th>
                 <th style={{ padding: '10px' }} className="no-print">Acción</th>
               </tr>
             </thead>
@@ -175,6 +197,7 @@ function App() {
                   <td style={{ padding: '10px' }}><strong>{p.cantidad}</strong></td>
                   <td style={{ padding: '10px' }}>{p.ancho} x {p.alto} mm</td>
                   <td style={{ padding: '10px' }}><span style={{ color: '#023e8a', fontWeight: '500' }}>{p.vidrioExt} + C{p.camara} + {p.vidrioInt}</span></td>
+                  <td style={{ padding: '10px', color: '#2b6cb0', fontWeight: 'bold' }}>{obtenerPrecioUnitarioItem(p)}</td>
                   <td style={{ padding: '10px' }} className="no-print">
                     <button onClick={() => eliminarPaño(p.id)} style={{ backgroundColor: '#e63946', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Quitar</button>
                   </td>
@@ -183,7 +206,7 @@ function App() {
             </tbody>
           </table>
 
-          {/* DESGLOSE Y PRESUPUESTO FINAL CON EL 15% INCLUIDO */}
+          {/* DESGLOSE Y PRESUPUESTO FINAL */}
           <div className="resumen-datos" style={{ backgroundColor: '#ebf8ff', padding: '20px', borderRadius: '8px', borderLeft: '5px solid #2b6cb0' }}>
             <h2 style={{ color: '#2c5282', marginTop: 0 }}>Cómputo Técnico y Resumen</h2>
             <p><strong>Unidades totales a fabricar:</strong> {totales.totalPaños} paños</p>
