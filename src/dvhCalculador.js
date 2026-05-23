@@ -1,8 +1,10 @@
-// Calculador de Componentes de DVH - Graziano Vidrios
-export function calcularObraDVH(listaPaños) {
-  let totalM2Vidrio = 0; // Suma de todos los m² de vidrio (exterior + interior)
-  let totalMetrosPerfil = 0; // Perímetro total de aluminio
+// Calculador Avanzado Desglosado de DVH - Graziano Vidrios
+export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML) {
+  let totalM2VidrioExt = 0;
+  let totalM2VidrioInt = 0;
+  let totalMetrosPerfil = 0;
   let totalPaños = 0;
+  let costoSubtotalInsumos = 0;
 
   listaPaños.forEach(paño => {
     const anchoM = paño.ancho / 1000;
@@ -10,15 +12,30 @@ export function calcularObraDVH(listaPaños) {
     const areaPaño = anchoM * altoM;
     const perimetroPaño = (anchoM * 2) + (altoM * 2);
 
-    // Cada paño lleva 2 vidrios (exterior e interior)
-    totalM2Vidrio += (areaPaño * 2) * paño.cantidad;
+    // Acumuladores físicos
+    totalM2VidrioExt += areaPaño * paño.cantidad;
+    totalM2VidrioInt += areaPaño * paño.cantidad;
     totalMetrosPerfil += perimetroPaño * paño.cantidad;
     totalPaños += paño.cantidad;
+
+    // Cálculo de costo base de este paño específico
+    const costoVidrioExt = areaPaño * Number(precioVidrioExt);
+    const costoVidrioInt = areaPaño * Number(precioVidrioInt);
+    const costoCamara = perimetroPaño * Number(precioCamaraML);
+    
+    costoSubtotalInsumos += (costoVidrioExt + costoVidrioInt + costoCamara) * paño.cantidad;
   });
+
+  // Aplicamos el 15% de desperdicio fijo solicitado sobre el costo de los materiales
+  const factorDesperdicio = 1.15;
+  const costoConDesperdicio = costoSubtotalInsumos * factorDesperdicio;
 
   return {
     totalPaños,
-    totalM2Vidrio: Number(totalM2Vidrio.toFixed(2)),
-    totalMetrosPerfil: Number(totalMetrosPerfil.toFixed(2))
+    totalM2VidrioExt: Number(totalM2VidrioExt.toFixed(2)),
+    totalM2VidrioInt: Number(totalM2VidrioInt.toFixed(2)),
+    totalMetrosPerfil: Number(totalMetrosPerfil.toFixed(2)),
+    costoSubtotalInsumos,
+    costoConDesperdicio
   };
 }
