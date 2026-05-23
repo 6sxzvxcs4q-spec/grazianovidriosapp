@@ -223,4 +223,31 @@ function App() {
             <p><strong>M² Netos Vidrio Interior:</strong> {totales.totalM2VidrioInt} m²</p>
             <p><strong>Metros lineales de Cámara/Perfil:</strong> {totales.totalMetrosPerfil} ML</p>
             <p style={{ color: '#4a5568', fontSize: '13px', fontStyle: 'italic', marginTop: '5px' }}>
-              * El sistema incluye automáticamente un +15% por desperdicio de
+              * El sistema incluye automáticamente un +15% por desperdicio de corte en los valores finales.
+            </p>
+            
+            {totalPresupuestoFinal && (
+              <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px dashed #bee3f8' }}>
+                {Number(porcentajeAjuste) !== 0 && (
+                  <p style={{ fontSize: '14px', color: '#4a5568', margin: '0 0 5px 0' }}> Margen de Obra: {Number(porcentajeAjuste) > 0 ? `+${porcentajeAjuste}` : porcentajeAjuste}%</p>
+                )}
+                <p style={{ fontSize: '26px', color: '#2f855a', margin: 0 }}>
+                  <strong>PRESUPUESTO FINAL TOTAL: {totalPresupuestoFinal}</strong>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="acciones-recuadro no-print" style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
+            <button onClick={mandarAImprimir} className="btn-optimizar" style={{ flex: 1, padding: '12px', fontSize: '16px' }}>
+              🖨️ Imprimir / Guardar PDF
+            </button>
+            <button onClick={limpiarObra} className="btn-limpiar">Borrar Todo</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
