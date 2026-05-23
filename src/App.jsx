@@ -49,7 +49,8 @@ function App() {
     window.print();
   };
 
-  // Procesamos los números generales
+  // PROCESADOR DE TOTALES GENERALES CORREGIDO
+  // Usamos la lógica de dvhCalculador pasándole los estados de precio correctos
   const totales = calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML);
 
   // Cálculo del presupuesto comercial definitivo para el bloque de abajo
@@ -64,7 +65,7 @@ function App() {
     });
   }
 
-  // Función interna para calcular el precio unitario de una fila en la tabla
+  // Función interna para calcular el precio unitario de una sola unidad en la fila
   const obtenerPrecioUnitarioItem = (p) => {
     if (!precioVidrioExt || !precioVidrioInt || !precioCamaraML) return "$ 0,00";
     
@@ -74,7 +75,7 @@ function App() {
     const perimetro = (anchoM * 2) + (altoM * 2);
 
     const costoInsumosBase = (area * Number(precioVidrioExt)) + (area * Number(precioVidrioInt)) + (perimetro * Number(precioCamaraML));
-    // Agregamos el 15% de desperdicio y el ajuste comercial de arriba
+    // Agregamos el 15% de desperdicio fijo y el ajuste comercial de arriba
     const costoConDesperdicio = costoInsumosBase * 1.15;
     const factorAjuste = 1 + (Number(porcentajeAjuste) / 100);
     const precioFinalUnitario = costoConDesperdicio * factorAjuste;
@@ -206,7 +207,7 @@ function App() {
             </tbody>
           </table>
 
-          {/* DESGLOSE Y PRESUPUESTO FINAL */}
+          {/* DESGLOSE Y PRESUPUESTO FINAL CORREGIDOS */}
           <div className="resumen-datos" style={{ backgroundColor: '#ebf8ff', padding: '20px', borderRadius: '8px', borderLeft: '5px solid #2b6cb0' }}>
             <h2 style={{ color: '#2c5282', marginTop: 0 }}>Cómputo Técnico y Resumen</h2>
             <p><strong>Unidades totales a fabricar:</strong> {totales.totalPaños} paños</p>
