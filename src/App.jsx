@@ -1,382 +1,301 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Layers, Percent, Square, RefreshCw } from 'lucide-react';
 
-// ==========================================
-// LÓGICA DEL OPTIMIZADOR (Tu función original)
-// ==========================================
-export function optimizarCortes(piezas, placaAncho, placaAlto) {
-  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [], areaTotalHojasM2: 0 };
+// --- ESTILOS EN JAVASCRIPT PARA EVITAR ERRORES DE TAILWIND EN VERCEL ---
+const styles = {
+  container: { backgroundColor: '#111827', color: '#f3f4f6', minHeight: '100vh', padding: '24px', fontFamily: 'system-ui, sans-serif' },
+  header: { borderBottom: '1px solid #374151', paddingBottom: '16px', marginBottom: '24px', textAlign: 'center' },
+  title: { fontSize: '28px', fontWeight: 'bold', color: '#60a5fa', margin: '0 0 8px 0' },
+  subtitle: { fontSize: '14px', color: '#9ca3af', margin: 0 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' },
+  card: { backgroundColor: '#1f2937', padding: '20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', border: '1px solid #374151' },
+  cardTitle: { fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#f3f4f6', display: 'flex', gap: '8px', alignItems: 'center' },
+  inputGroup: { marginBottom: '12px' },
+  label: { display: 'block', fontSize: '13px', color: '#9ca3af', marginBottom: '4px' },
+  input: { width: '100%', backgroundColor: '#374151', border: '1px solid #4b5563', borderRadius: '6px', padding: '8px 12px', color: '#fff', fontSize: '15px', boxSizing: 'border-box' },
+  button: { width: '100%', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', padding: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s', marginTop: '8px' },
+  buttonDanger: { width: '100%', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', padding: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s', marginTop: '12px' },
+  table: { width: '100%', borderCollapse: 'collapse', marginTop: '12px' },
+  th: { textAlign: 'left', padding: '8px', borderBottom: '2px solid #4b5563', color: '#9ca3af', fontSize: '13px' },
+  td: { padding: '8px', borderBottom: '1px solid #374151', fontSize: '14px' },
+  badge: { backgroundColor: '#374151', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
+  summaryBox: { backgroundColor: '#111827', padding: '12px', borderRadius: '6px', marginBottom: '16px', border: '1px solid #374151' },
+  rowSummary: { display: 'flex', justifyContent: 'between', margin: '6px 0', fontSize: '14px' },
+  hojaContenedor: { backgroundColor: '#1f2937', padding: '20px', borderRadius: '8px', marginTop: '20px', border: '1px solid #374151' },
+  mapaCorte: { position: 'relative', backgroundColor: '#0f172a', border: '2px solid #ef4444', margin: '16px auto', overflow: 'hidden', borderRadius: '4px' }
+};
 
-  const lotes = [];
-  piezas.forEach(pieza => {
-    const loteExistente = lotes.find(l => 
-      (l.ancho === pieza.ancho && l.alto === pieza.alto) || 
-      (l.ancho === pieza.alto && l.alto === pieza.ancho)
-    );
-    if (loteExistente) {
-      loteExistente.cantidad++;
-    } else {
-      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, cantidad: 1 });
-    }
-  });
-
-  const placas = [];
-  let areaVidriosNetoM2 = 0;
-
-  lotes.forEach(lote => {
-    areaVidriosNetoM2 += ((lote.ancho * lote.alto) / 1000000) * lote.cantidad;
-
-    const cantPorColA = Math.floor(placaAlto / lote.alto);
-    const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
-    const totalA = cantPorColA * cantPorFilaA;
-
-    const cantPorColB = Math.floor(placaAlto / lote.ancho);
-    const cantPorFilaB = Math.floor(placaAncho / lote.alto);
-    const totalB = cantPorColB * cantPorFilaB;
-
-    let usarRotado = false;
-    if (totalB > totalA) {
-      usarRotado = true;
-    } else if (totalB === totalA) {
-      if ((placaAlto % lote.ancho) < (placaAlto % lote.alto)) usarRotado = true;
-    }
-
-    const anchoFinal = usarRotado ? lote.alto : lote.ancho;
-    const altoFinal = usarRotado ? lote.ancho : lote.alto;
-
-    for (let i = 0; i < lote.cantidad; i++) {
-      let ubicada = false;
-
-      for (let placa of placas) {
-        if (acomodarEnPlacaVertical(placa, anchoFinal, altoFinal, usarRotado)) {
-          ubicada = true;
-          break;
-        }
-      }
-
-      if (!ubicada) {
-        const nuevaPlaca = {
-          ancho: placaAncho,
-          alto: placaAlto,
-          piezasUbicadas: [],
-          columnas: []
-        };
-        acomodarEnPlacaVertical(nuevaPlaca, anchoFinal, altoFinal, usarRotado);
-        placas.push(nuevaPlaca);
-      }
-    }
-  });
-
-  const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
-  const areaUtilizadaTotal = placas.reduce((acc, p) => {
-    return acc + p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
-  }, 0);
-  
-  const areaDesperdicio = areaPlacaTotal - areaUtilizadaTotal;
-  const porcentajeDesperdicio = ((areaDesperdicio / areaPlacaTotal) * 100).toFixed(1);
-  const metrosDesperdicio = (areaDesperdicio / 1000000).toFixed(2);
-
-  return {
-    barrasUsadas: placas.length,
-    desperdicioTotal: `${porcentajeDesperdicio}% (${metrosDesperdicio} m²)`,
-    detalles: placas,
-    areaTotalHojasM2: areaVidriosNetoM2
-  };
-}
-
-function acomodarEnPlacaVertical(placa, ancho, alto, rotada) {
-  for (let col of placa.columnas) {
-    if (ancho <= col.ancho && (col.yActual + alto) <= placa.alto) {
-      placa.piezasUbicadas.push({
-        ancho: ancho,
-        alto: alto,
-        x: col.x,
-        y: col.yActual,
-        rotada: rotada
-      });
-      col.yActual += alto;
-      return true;
-    }
-  }
-
-  const xSiguiente = placa.columnas.length > 0 
-    ? placa.columnas[placa.columnas.length - 1].x + placa.columnas[placa.columnas.length - 1].ancho
-    : 0;
-
-  if (xSiguiente + ancho <= placa.ancho && alto <= placa.alto) {
-    placa.columnas.push({ x: xSiguiente, ancho: ancho, yActual: alto });
-    placa.piezasUbicadas.push({
-      ancho: ancho,
-      alto: alto,
-      x: xSiguiente,
-      y: 0,
-      rotada: rotada
-    });
-    return true;
-  }
-
-  return false;
-}
-
-// ==========================================
-// COMPONENTE PRINCIPAL APP
-// ==========================================
 export default function App() {
-  // Medidas por defecto de la plancha de vidrio estándar (en mm)
-  const [placaAncho, setPlacaAncho] = useState(3210);
-  const [placaAlto, setPlacaAlto] = useState(2400);
+  // Estados de la plancha base
+  const [hojaAncho, setHojaAncho] = useState(3600);
+  const [hojaAlto, setHojaAlto] = useState(2500);
 
-  // Estados para el formulario de piezas
+  // Estados del formulario de carga
+  const [ancho, setAncho] = useState('');
+  const [alto, setAlto] = useState('');
+  const [cantidad, setCantidad] = useState(1);
+  const [etiqueta, setEtiqueta] = useState('');
+
+  // Lista de piezas desglosadas a cortar
   const [piezas, setPiezas] = useState([]);
-  const [anchoInput, setAnchoInput] = useState('');
-  const [altoInput, setAltoInput] = useState('');
-  const [cantInput, setCantInput] = useState('1');
 
-  // Agregar piezas a la lista
-  const agregarPiezas = (e) => {
+  // Agregar piezas mapeando por cantidad
+  const agregarPieza = (e) => {
     e.preventDefault();
-    if (!anchoInput || !altoInput || parseInt(cantInput) <= 0) return;
+    if (!ancho || !alto || cantidad < 1) return;
 
-    const nuevasPiezas = [];
-    for (let i = 0; i < parseInt(cantInput); i++) {
-      nuevasPiezas.push({
+    const nuevas = [];
+    for (let i = 0; i < cantidad; i++) {
+      nuevas.push({
         id: Date.now() + Math.random(),
-        ancho: parseInt(anchoInput),
-        alto: parseInt(altoInput)
+        ancho: parseInt(ancho),
+        alto: parseInt(alto),
+        etiqueta: etiqueta.trim() || `Vidrio ${piezas.length + i + 1}`
       });
     }
-
-    setPiezas([...piezas, ...nuevasPiezas]);
-    setAnchoInput('');
-    setAltoInput('');
-    setCantInput('1');
+    setPiezas([...piezas, ...nuevas]);
+    setAncho('');
+    setAlto('');
+    setCantidad(1);
+    setEtiqueta('');
   };
 
-  // Eliminar una pieza individual de la lista
   const eliminarPieza = (id) => {
     setPiezas(piezas.filter(p => p.id !== id));
   };
 
-  // Limpiar toda la carga
   const limpiarTodo = () => {
     setPiezas([]);
   };
 
-  // Ejecutar el optimizador con los datos actuales
-  const resultado = optimizarCortes(piezas, placaAncho, placaAlto);
+  // --- ALGORITMO GUILLOTINA AVANZADO (MULTI-HOJA) ---
+  const optimizarCortes = () => {
+    // Ordenamos de mayor a menor superficie para optimizar mejor
+    let piezasPendientes = [...piezas].sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+    const hojasResultado = [];
+
+    while (piezasPendientes.length > 0) {
+      const espaciosLibres = [{ x: 0, y: 0, w: hojaAncho, h: hojaAlto }];
+      const piezasEnEstaHoja = [];
+
+      for (let i = 0; i < piezasPendientes.length; i++) {
+        const pieza = piezasPendientes[i];
+        let espacioEncontradoIdx = -1;
+
+        // Buscar primer espacio donde entre (probando orientación normal)
+        for (let j = 0; j < espaciosLibres.length; j++) {
+          const esp = espaciosLibres[j];
+          if (pieza.ancho <= esp.w && pieza.alto <= esp.h) {
+            espacioEncontradoIdx = j;
+            break;
+          }
+        }
+
+        if (espacioEncontradoIdx !== -1) {
+          const esp = espaciosLibres[espacioEncontradoIdx];
+          espaciosLibres.splice(espacioEncontradoIdx, 1);
+
+          // Guardamos posición calculada
+          piezasEnEstaHoja.push({
+            ...pieza,
+            x: esp.x,
+            y: esp.y
+          });
+
+          // Guillotina: Dividimos el espacio restante en dos nuevos rectángulos
+          const anchoRestante = esp.w - pieza.ancho;
+          const altoRestante = esp.h - pieza.alto;
+
+          if (anchoRestante > 0) {
+            espaciosLibres.push({ x: esp.x + pieza.ancho, y: esp.y, w: anchoRestante, h: esp.h });
+          }
+          if (altoRestante > 0) {
+            espaciosLibres.push({ x: esp.x, y: esp.y + pieza.alto, w: pieza.ancho, h: altoRestante });
+          }
+
+          // Ordenamos espacios libres más chicos primero para optimizar esquinas
+          espaciosLibres.sort((a, b) => (a.w * a.h) - (b.w * b.h));
+
+          // Quitamos de la lista general de pendientes
+          piezasPendientes.splice(i, 1);
+          i--; // Reajustar índice
+        }
+      }
+
+      // Calcular rendimiento de esta hoja
+      const supHoja = hojaAncho * hojaAlto;
+      const supUtilizada = piezasEnEstaHoja.reduce((sum, p) => sum + (p.ancho * p.alto), 0);
+      const porcentajeUtilizado = ((supUtilizada / supHoja) * 100).toFixed(1);
+      const desperdicio = (100 - porcentajeUtilizado).toFixed(1);
+
+      hojasResultado.push({
+        piezas: piezasEnEstaHoja,
+        utilizado: porcentajeUtilizado,
+        desperdicio: desperdicio,
+        m2Utilizados: (supUtilizada / 1000000).toFixed(2)
+      });
+    }
+
+    return hojasResultado;
+  };
+
+  const hojasOptimizadas = optimizarCortes();
+  const totalM2Reales = piezas.reduce((sum, p) => sum + (p.ancho * p.alto) / 1000000, 0).toFixed(2);
+
+  // Factor de escala dinámico para que el mapa calce en cualquier pantalla
+  const escalaMax = 280; 
+  const factorEscala = Math.min(escalaMax / hojaAncho, escalaMax / hojaAlto);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
-      <header className="max-w-6xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-blue-400 tracking-tight">Graziano Vidrios</h1>
-          <p className="text-gray-400 text-sm">Optimizador Limpio por M² Reales</p>
-        </div>
-        {piezas.length > 0 && (
-          <button 
-            onClick={limpiarTodo}
-            className="flex items-center gap-2 bg-red-900/40 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg text-sm transition-all border border-red-800"
-          >
-            <RefreshCw size={16} /> Limpiar Todo
-          </button>
-        )}
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <h1 style={styles.title}>Optimización Real de Planchas de Vidrio</h1>
+        <p style={styles.subtitle}>Graziano Vidrios SRL — Sistema de Taller Inteligente</p>
       </header>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* COLUMNA IZQUIERDA: CONFIGURACIÓN Y CARGA */}
-        <div className="space-y-6 lg:col-span-1">
-          {/* Medidas de la Placa */}
-          <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg">
-            <h2 className="text-lg font-semibold mb-4 text-blue-300 flex items-center gap-2">
-              <Square size={18} /> Medidas de la Hoja (mm)
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Ancho (X)</label>
-                <input 
-                  type="number" 
-                  value={placaAncho} 
-                  onChange={(e) => setPlacaAncho(parseInt(e.target.value) || 0)}
-                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                />
+      <div style={styles.grid}>
+        {/* PANEL IZQUIERDO: CONFIGURACIÓN Y CARGA */}
+        <div>
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>1. Medidas de la Hoja Base (mm)</h3>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={styles.label}>Ancho (X)</label>
+                <input type="number" style={styles.input} value={hojaAncho} onChange={e => setHojaAncho(parseInt(e.target.value) || 0)} />
               </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Alto (Y)</label>
-                <input 
-                  type="number" 
-                  value={placaAlto} 
-                  onChange={(e) => setPlacaAlto(parseInt(e.target.value) || 0)}
-                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                />
+              <div style={{ flex: 1 }}>
+                <label style={styles.label}>Alto (Y)</label>
+                <input type="number" style={styles.input} value={hojaAlto} onChange={e => setHojaAlto(parseInt(e.target.value) || 0)} />
               </div>
             </div>
           </div>
 
-          {/* Formulario de Carga */}
-          <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg">
-            <h2 className="text-lg font-semibold mb-4 text-emerald-400 flex items-center gap-2">
-              <Plus size={18} /> Cargar Vidrios a Cortar
-            </h2>
-            <form onSubmit={agregarPiezas} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Ancho (mm)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Ej: 1200"
-                    value={anchoInput} 
-                    onChange={(e) => setAnchoInput(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                    required
-                  />
+          <div style={{ ...styles.card, marginTop: '20px' }}>
+            <h3 style={styles.cardTitle}>2. Cargar Vidrios a Cortar</h3>
+            <form onSubmit={agregarPieza}>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={styles.label}>Ancho (mm)</label>
+                  <input type="number" style={styles.input} required value={ancho} onChange={e => setAncho(e.target.value)} placeholder="Ej: 1200" />
                 </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Alto (mm)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Ej: 800"
-                    value={altoInput} 
-                    onChange={(e) => setAltoInput(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                    required
-                  />
+                <div style={{ flex: 1 }}>
+                  <label style={styles.label}>Alto (mm)</label>
+                  <input type="number" style={styles.input} required value={alto} onChange={e => setAlto(e.target.value)} placeholder="Ej: 800" />
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Cantidad de piezas</label>
-                <input 
-                  type="number" 
-                  min="1"
-                  value={cantInput} 
-                  onChange={(e) => setCantInput(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                  required
-                />
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={styles.label}>Cantidad</label>
+                  <input type="number" style={styles.input} min="1" required value={cantidad} onChange={e => setCantidad(parseInt(e.target.value) || 1)} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={styles.label}>Nota / Etiqueta</label>
+                  <input type="text" style={styles.input} value={etiqueta} onChange={e => setEtiqueta(e.target.value)} placeholder="Ej: Obra Martínez" />
+                </div>
               </div>
-              <button 
-                type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus size={18} /> Agregar a la Lista
-              </button>
+              <button type="submit" style={styles.button}>+ Agregar a la Lista de Corte</button>
             </form>
           </div>
 
-          {/* Lista de Piezas Cargadas */}
-          <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg max-h-80 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">
-              Piezas en espera ({piezas.length})
-            </h3>
+          {piezas.length > 0 && (
+            <div style={{ ...styles.card, marginTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ ...styles.cardTitle, marginBottom: 0 }}>Vidrios en Espera ({piezas.length})</h3>
+                <span style={{ color: '#60a5fa', fontSize: '14px', fontWeight: 'bold' }}>Total Neto: {totalM2Reales} m²</span>
+              </div>
+              <div style={{ maxHeight: '250px', overflowY: 'auto', marginTop: '12px' }}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Medidas (mm)</th>
+                      <th style={styles.th}>Etiqueta</th>
+                      <th style={styles.th}>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {piezas.map((p) => (
+                      <tr key={p.id}>
+                        <td style={styles.td}>{p.ancho} x {p.alto}</td>
+                        <td style={styles.td}><span style={styles.badge}>{p.etiqueta}</span></td>
+                        <td style={styles.td}>
+                          <button onClick={() => eliminarPieza(p.id)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontWeight: 'bold' }}>Borrar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button onClick={limpiarTodo} style={styles.buttonDanger}>Limpiar Todo el Listado</button>
+            </div>
+          )}
+        </div>
+
+        {/* PANEL DERECHO: RENDIMIENTO Y MAPAS GRÁFICOS */}
+        <div>
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>3. Distribución y Hojas Necesarias</h3>
             {piezas.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No hay piezas cargadas aún.</p>
+              <p style={{ color: '#9ca3af', textAlign: 'center', margin: '20px 0' }}>Cargá medidas a la izquierda para proyectar el mapa de corte del taller.</p>
             ) : (
-              <div className="space-y-2">
-                {piezas.map((pieza) => (
-                  <div key={pieza.id} className="flex justify-between items-center bg-gray-900 p-2.5 rounded border border-gray-800 text-sm">
-                    <span>{pieza.ancho} x {pieza.alto} mm</span>
-                    <button 
-                      onClick={() => eliminarPieza(pieza.id)} 
-                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-gray-800 transition-colors"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+              <div>
+                <div style={styles.summaryBox}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#60a5fa', marginBottom: '4px' }}>
+                    <span>Planchas Requeridas:</span>
+                    <span>{hojasOptimizadas.length} Hoja(s)</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>Optimizando cortes tipo guillotina para evitar quiebres falsos.</div>
+                </div>
 
-        {/* COLUMNA DERECHA: RESULTADOS DE OPTIMIZACIÓN */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Tarjetas de Resumen Numérico */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-blue-950 to-gray-800 p-5 rounded-xl border border-blue-900 shadow-md">
-              <div className="text-blue-400 mb-1 flex items-center gap-2 text-sm font-medium">
-                <Layers size={16} /> Hojas Necesarias
-              </div>
-              <div className="text-3xl font-bold">{resultado.barrasUsadas}</div>
-              <p className="text-xs text-gray-400 mt-1">Placas de {placaAncho}x{placaAlto}</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-emerald-950 to-gray-800 p-5 rounded-xl border border-emerald-900 shadow-md">
-              <div className="text-emerald-400 mb-1 flex items-center gap-2 text-sm font-medium">
-                <Square size={16} /> Superficie Neta
-              </div>
-              <div className="text-3xl font-bold">{resultado.areaTotalHojasM2.toFixed(2)} m²</div>
-              <p className="text-xs text-gray-400 mt-1">Suma de m² reales de vidrio</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-amber-950 to-gray-800 p-5 rounded-xl border border-amber-900 shadow-md">
-              <div className="text-amber-400 mb-1 flex items-center gap-2 text-sm font-medium">
-                <Percent size={16} /> Desperdicio Total
-              </div>
-              <div className="text-3xl font-bold text-amber-300">{resultado.desperdicioTotal.split(' ')[0]}</div>
-              <p className="text-xs text-gray-400 mt-1">Equivale a {resultado.desperdicioTotal.split(' ')[1] || '0.00'} m²</p>
-            </div>
-          </div>
-
-          {/* Detalle Visual/Esquema de las Placas */}
-          <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-            <h2 className="text-lg font-semibold mb-4 text-gray-200">Esquema de Distribución por Hoja</h2>
-            {resultado.detalles.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-700 rounded-xl text-gray-500">
-                Cargá piezas a la izquierda para ver la distribución del corte.
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {resultado.detalles.map((placa, index) => (
-                  <div key={index} className="border border-gray-700 rounded-lg p-4 bg-gray-900/50">
-                    <h3 className="text-sm font-medium text-blue-400 mb-3">Hoja N° {index + 1}</h3>
+                {hojasOptimizadas.map((hoja, index) => (
+                  <div key={index} style={styles.hojaContenedor}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #4b5563', paddingBottom: '8px', marginBottom: '12px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#f3f4f6' }}>HOJA Nº {index + 1}</span>
+                      <span style={{ color: '#34d399', fontSize: '14px', fontWeight: 'bold' }}>Rendimiento: {hoja.utilizado}%</span>
+                    </div>
                     
-                    {/* Contenedor proporcional del vidrio */}
-                    <div 
-                      className="relative bg-gray-900 border-2 border-gray-600 rounded mx-auto overflow-hidden shadow-inner"
-                      style={{
-                        width: '100%',
-                        aspectRatio: `${placaAncho} / ${placaAlto}`,
-                        maxWidth: '500px'
-                      }}
-                    >
-                      {/* Dibujo de las piezas ubicadas dentro de la placa */}
-                      {placa.piezasUbicadas.map((pz, pzIdx) => {
-                        // Calculamos porcentajes relativos para el renderizado CSS
-                        const pctX = (pz.x / placaAncho) * 100;
-                        const pctY = (pz.y / placaAlto) * 100;
-                        const pctW = (pz.ancho / placaAncho) * 100;
-                        const pctH = (pz.alto / placaAlto) * 100;
-
-                        return (
-                          <div
-                            key={pzIdx}
-                            className="absolute border border-blue-500 bg-blue-500/20 text-[9px] font-bold text-blue-200 flex flex-col items-center justify-center overflow-hidden transition-all hover:bg-blue-500/40"
-                            style={{
-                              left: `${pctX}%`,
-                              top: `${pctY}%`,
-                              width: `${pctW}%`,
-                              height: `${pctH}%`,
-                            }}
-                            title={`${pz.ancho}x${pz.alto}mm ${pz.rotada ? '(Rotado)' : ''}`}
-                          >
-                            <span>{pz.ancho}</span>
-                            <span className="text-[7px] text-gray-400">x</span>
-                            <span>{pz.alto}</span>
-                          </div>
-                        );
-                      })}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>
+                      <span>Vidrio Útil: {hoja.m2Utilizados} m²</span>
+                      <span style={{ color: '#f87171' }}>Desperdicio: {hoja.desperdicio}%</span>
                     </div>
-                    <div className="text-right text-xs text-gray-500 mt-2">
-                      Piezas en esta hoja: {placa.piezasUbicadas.length}
+
+                    {/* MAPA GRÁFICO ESCALADO DE LA PLANCHA */}
+                    <div style={{
+                      ...styles.mapaCorte,
+                      width: `${hojaAncho * factorEscala}px`,
+                      height: `${hojaAlto * factorEscala}px`
+                    }}>
+                      {hoja.piezas.map((p, pIdx) => (
+                        <div key={p.id} style={{
+                          position: 'absolute',
+                          left: `${p.x * factorEscala}px`,
+                          top: `${p.y * factorEscala}px`,
+                          width: `${p.ancho * factorEscala}px`,
+                          height: `${p.alto * factorEscala}px`,
+                          backgroundColor: `hsl(${(pIdx * 65) % 360}, 65%, 35%)`,
+                          border: '1px solid rgba(255,255,255,0.4)',
+                          boxSizing: 'border-box',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          padding: '2px',
+                          overflow: 'hidden'
+                        }}>
+                          <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                            {p.ancho}x{p.alto}
+                          </span>
+                          <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                            {p.etiqueta}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
         </div>
-      </main>
+      </div>
     </div>
   );
 }
