@@ -43,7 +43,7 @@ export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, p
   };
 }
 
-// Algoritmo simple de Optimización de Corte (Planchas de 3600x2500)
+// Algoritmo de Optimización de Corte con Rotación Inteligente (Hojas de 3600x2500)
 function optimizarCortes(listaPaños) {
   const HOJA_ANCHO = 3600;
   const HOJA_ALTO = 2500;
@@ -52,20 +52,60 @@ function optimizarCortes(listaPaños) {
   let hojas = [];
   let pañosRestantes = [];
 
+  // Desglosamos las cantidades en paños individuales
   listaPaños.forEach(p => {
     for (let i = 0; i < p.cantidad; i++) {
       pañosRestantes.push({ ancho: p.ancho, alto: p.alto });
     }
   });
 
+  // Ordenamos de mayor a menor área para mejorar la estrategia de acomodo (Max-Fit)
+  pañosRestantes.sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+
   while (pañosRestantes.length > 0) {
-    let hojaActual = { paños: [], areaUsada: 0 };
+    let hojaActual = { paños: [], areaUsada: 0, X_actual: 0, Y_actual: 0, altoFilaMax: 0 };
     let pañosQueNoEntraron = [];
 
     pañosRestantes.forEach(paño => {
-      if (hojaActual.areaUsada + (paño.ancho * paño.alto) <= AREA_HOJA) {
-        hojaActual.paños.push(paño);
-        hojaActual.areaUsada += (paño.ancho * paño.alto);
+      let anchoFinal = paño.ancho;
+      let altoFinal = paño.alto;
+      let entraNormal = (hojaActual.X_actual + anchoFinal <= HOJA_ANCHO) && (hojaActual.Y_actual + altoFinal <= HOJA_ALTO);
+      let entraRotado = (hojaActual.X_actual + altoFinal <= HOJA_ANCHO) && (hojaActual.Y_actual + anchoFinal <= HOJA_ALTO);
+
+      // Si no entra normal pero sí rotado, o si rotado aprovecha mejor el espacio, lo giramos
+      if (!entraNormal && entraRotado) {
+        anchoFinal = paño.alto;
+        altoFinal = paño.ancho;
+        entraNormal = true;
+      } else if (entraNormal && entraRotado) {
+        // Estrategia heurística: si entra de las dos formas, elegimos la que deje menos desperdicio horizontal en la fila
+        if (anchoFinal < altoFinal) {
+          anchoFinal = paño.alto;
+          altoFinal = paño.ancho;
+        }
+      }
+
+      // Verificamos si podemos acomodarlo en la posición definida
+      if (entraNormal && (hojaActual.areaUsada + (anchoFinal * altoFinal) <= AREA_HOJA)) {
+        hojaActual.paños.push({ 
+          ancho: anchoFinal, 
+          alto: altoFinal, 
+          rotado: anchoFinal !== paño.ancho 
+        });
+        hojaActual.areaUsada += (anchoFinal * altoFinal);
+        
+        // Avanzamos el cursor virtual de corte
+        hojaActual.X_actual += anchoFinal;
+        if (altoFinal > hojaActual.altoFilaMax) {
+          hojaActual.altoFilaMax = altoFinal;
+        }
+
+        // Si nos pasamos del ancho de la plancha, saltamos a la siguiente fila horizontal
+        if (hojaActual.X_actual >= HOJA_ANCHO) {
+          hojaActual.X_actual = 0;
+          hojaActual.Y_actual += hojaActual.altoFilaMax;
+          hojaActual.altoFilaMax = 0;
+        }
       } else {
         pañosQueNoEntraron.push(paño);
       }
@@ -77,6 +117,7 @@ function optimizarCortes(listaPaños) {
     });
 
     if (pañosRestantes.length === pañosQueNoEntraron.length) {
+      // Forzar salida si un paño excede los límites físicos de la plancha base
       break;
     }
     pañosRestantes = pañosQueNoEntraron;
@@ -278,10 +319,24 @@ export default function App() {
                       <span style={{ fontWeight: 'bold' }}>HOJA Nº {index + 1} (3600x2500)</span>
                       <span style={{ color: '#34d058', fontWeight: 'bold' }}>Rendimiento: {hoja.rendimiento} %</span>
                     </div>
-                    <div style={{ width: '100%', height: '180px', border: '1px solid #ff4444', position: 'relative', backgroundColor: '#0a0e14', borderRadius: '4px', display: 'flex', flexWrap: 'wrap', padding: '5px', gap: '2px' }}>
+                    <div style={{ width: '100%', minHeight: '180px', border: '1px solid #ff4444', position: 'relative', backgroundColor: '#0a0e14', borderRadius: '4px', display: 'flex', flexWrap: 'wrap', padding: '10px', gap: '4px' }}>
                       {hoja.paños.map((p, pIdx) => (
-                        <div key={pIdx} style={{ backgroundColor: '#388bfd', border: '1px solid #fff', color: '#fff', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2px', minWidth: '40px', height: '35px' }}>
-                          {p.ancho}x{p.alto}
+                        <div key={pIdx} style={{ 
+                          backgroundColor: p.rotado ? '#8a3ffc' : '#388bfd', 
+                          border: '1px solid #fff', 
+                          color: '#fff', 
+                          fontSize: '10px', 
+                          display: 'flex', 
+                          flexDirection: 'column',
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          padding: '4px', 
+                          minWidth: '55px', 
+                          height: '45px',
+                          borderRadius: '2px'
+                        }}>
+                          <span>{p.ancho}x{p.alto}</span>
+                          {p.rotated || p.rotado && <span style={{ fontSize: '8px', color: '#ffb454', fontWeight: 'bold' }}>[GIRADO]</span>}
                         </div>
                       ))}
                     </div>
