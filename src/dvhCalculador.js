@@ -1,42 +1,40 @@
-// Calculador Avanzado Desglosado de DVH (Corregido) - Graziano Vidrios
-export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML) {
-  let totalM2VidrioExt = 0;
-  let totalM2VidrioInt = 0;
-  let totalMetrosPerfil = 0;
-  let totalPaños = 0;
-  let costoSubtotalInsumos = 0;
+import React, { useState } from 'react';
+import { calcularObraDVH } from './tuArchivoDeLogica'; // Si la tenés aparte
 
-  listaPaños.forEach(paño => {
-    const anchoM = paño.ancho / 1000;
-    const altoM = paño.alto / 1000;
-    const areaPaño = anchoM * altoM;
-    const perimetroPaño = (anchoM * 2) + (altoM * 2);
+export default function MiComponenteDVH() {
+  // 1. LOS ESTADOS VAN ACÁ ADENTRO (Para que React controle lo que se escribe en la pantalla)
+  const [listaPaños, setListaPaños] = useState([]); // Tu lista actual de paños
+  const [precioVidrioExt, setPrecioVidrioExt] = useState('');
+  const [precioVidrioInt, setPrecioVidrioInt] = useState('');
+  const [precioCamara, setPrecioCamara] = useState('');
+  const [desperdicio, setDesperdicio] = useState('15');
+  
+  const [resultado, setResultado] = useState(null); // Para guardar lo que devuelva la función
 
-    // Sumamos de forma acumulativa usando += para CADA paño de la lista
-    totalM2VidrioExt += (areaPaño * paño.cantidad);
-    totalM2VidrioInt += (areaPaño * paño.cantidad);
-    totalMetrosPerfil += (perimetroPaño * paño.cantidad);
-    totalPaños += paño.cantidad;
-
-    // Cálculo de costo base de este paño específico multiplicado por su cantidad
-    const costoVidrioExt = areaPaño * Number(precioVidrioExt);
-    const costoVidrioInt = areaPaño * Number(precioVidrioInt);
-    const costoCamara = perimetroPaño * Number(precioCamaraML);
+  // 2. LA FUNCIÓN QUE SE EJECUTA AL DARLE AL BOTÓN
+  const handleCalcularPresupuesto = () => {
+    // Le pasamos a tu función los datos que el usuario escribió en los inputs
+    const calculo = calcularObraDVH(
+      listaPaños, 
+      precioVidrioExt, 
+      precioVidrioInt, 
+      precioCamara, 
+      desperdicio
+    );
     
-    // Sumamos al gran total de la obra
-    costoSubtotalInsumos += (costoVidrioExt + costoVidrioInt + costoCamara) * paño.cantidad;
-  });
-
-  // Aplicamos el 15% de desperdicio fijo sobre el costo total acumulado
-  const factorDesperdicio = 1.15;
-  const costoConDesperdicio = costoSubtotalInsumos * factorDesperdicio;
-
-  return {
-    totalPaños,
-    totalM2VidrioExt: Number(totalM2VidrioExt.toFixed(2)),
-    totalM2VidrioInt: Number(totalM2VidrioInt.toFixed(2)),
-    totalMetrosPerfil: Number(totalMetrosPerfil.toFixed(2)),
-    costoSubtotalInsumos,
-    costoConDesperdicio
+    setResultado(calculo); // Guardamos el resultado para mostrarlo en el "Detalle de Presupuesto"
   };
+
+  return (
+    <div>
+      {/* ... Tus inputs donde usás el onChange y el value ... */}
+      
+      {/* Tu botón de Agregar/Calcular ahora llama a handleCalcularPresupuesto */}
+      <button onClick={handleCalcularPresupuesto}>
+        + Agregar al presupuesto
+      </button>
+
+      {/* ... Acá usás 'resultado.costoConDesperdicio', 'resultado.totalMetrosPerfil', etc., para dibujar la tabla de la derecha ... */}
+    </div>
+  );
 }
