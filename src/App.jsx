@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-// --- ESTILOS EN JAVASCRIPT PARA EVITAR ERRORES DE TAILWIND EN VERCEL ---
+// --- ESTILOS EN JAVASCRIPT PARA EVITAR ERRORES DE TAILWIND ---
 const styles = {
   container: { backgroundColor: '#111827', color: '#f3f4f6', minHeight: '100vh', padding: '24px', fontFamily: 'system-ui, sans-serif' },
   header: { borderBottom: '1px solid #374151', paddingBottom: '16px', marginBottom: '24px', textAlign: 'center' },
@@ -19,13 +19,11 @@ const styles = {
   td: { padding: '8px', borderBottom: '1px solid #374151', fontSize: '14px' },
   badge: { backgroundColor: '#374151', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
   summaryBox: { backgroundColor: '#111827', padding: '12px', borderRadius: '6px', marginBottom: '16px', border: '1px solid #374151' },
-  rowSummary: { display: 'flex', justifyContent: 'between', margin: '6px 0', fontSize: '14px' },
   hojaContenedor: { backgroundColor: '#1f2937', padding: '20px', borderRadius: '8px', marginTop: '20px', border: '1px solid #374151' },
   mapaCorte: { position: 'relative', backgroundColor: '#0f172a', border: '2px solid #ef4444', margin: '16px auto', overflow: 'hidden', borderRadius: '4px' }
 };
 
 export default function App() {
-  // Medidas por defecto actualizadas a 3600 x 2500
   const [hojaAncho, setHojaAncho] = useState(3600);
   const [hojaAlto, setHojaAlto] = useState(2500);
 
@@ -63,84 +61,91 @@ export default function App() {
     setPiezas([]);
   };
 
-  // --- ALGORITMO GUILLOTINA INTELIGENTE CON ROTACIÓN INDIVIDUAL ---
+  // --- ALGORITMO DE CORTE OPTIMIZADO POR NIVELES (FILAS) ---
   const optimizarCortes = () => {
-    let piezasPendientes = [...piezas].sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+    // Ordenamos las piezas priorizando siempre el alto para armar filas prolijas
+    let piezasPendientes = [...piezas].sort((a, b) => b.alto - a.alto);
     const hojasResultado = [];
 
     while (piezasPendientes.length > 0) {
-      const espaciosLibres = [{ x: 0, y: 0, w: hojaAncho, h: hojaAlto }];
       const piezasEnEstaHoja = [];
+      let yActual = 0; // Altura actual en la plancha
 
-      for (let i = 0; i < piezasPendientes.length; i++) {
-        const pieza = piezasPendientes[i];
-        let espacioEncontradoIdx = -1;
-        let rotada = false;
+      while (yActual < hojaAlto && piezasPendientes.length > 0) {
+        // Buscamos la pieza más alta que quede para definir la altura de la fila actual
+        let alturaFila = 0;
+        let xActual = 0;
+        let piezasFila = [];
 
-        // 1. Probar en orientación ORIGINAL
-        for (let j = 0; j < espaciosLibres.length; j++) {
-          const esp = espaciosLibres[j];
-          if (pieza.ancho <= esp.w && pieza.alto <= esp.h) {
-            espacioEncontradoIdx = j;
-            break;
-          }
-        }
+        // Recorremos las piezas para ver cuáles entran en el ancho de esta fila
+        for (let i = 0; i < piezasPendientes.length; i++) {
+          const pieza = piezasPendientes[i];
+          let anchoPieza = pieza.ancho;
+          let altoPieza = pieza.alto;
+          let seRoto = false;
 
-        // 2. Si no entra, probar ROTANDO EL VIDRIO SOLO 90°
-        if (espacioEncontradoIdx === -1) {
-          for (let j = 0; j < espaciosLibres.length; j++) {
-            const esp = espaciosLibres[j];
-            if (pieza.alto <= esp.w && pieza.ancho <= esp.h) {
-              espacioEncontradoIdx = j;
-              rotada = true;
-              break;
+          // Verificamos si entra normal en lo que queda de ancho y alto de la plancha
+          let entraNormal = (xActual + anchoPieza <= hojaAncho) && (yActual + altoPieza <= hojaAlto);
+          // Verificamos si entra mejor rotándola 90°
+          let entraRotada = (xActual + altoPieza <= hojaAncho) && (yActual + anchoPieza <= hojaAlto);
+
+          // Si entra de las dos formas, elegimos la orientación que mejor mantenga el flujo o la altura de la fila
+          if (entraNormal || entraRotada) {
+            // Si no entra normal pero sí rotada, la rotamos obligatoriamente
+            if (!entraNormal && entraRotada) {
+              anchoPieza = pieza.alto;
+              altoPieza = pieza.ancho;
+              seRoto = true;
             }
+
+            // Guardamos la pieza posicionada en la fila
+            piezasFila.push({
+              ...pieza,
+              x: xActual,
+              y: yActual,
+              anchoDisplay: anchoPieza,
+              altoDisplay: altoPieza,
+              rotada: seRoto
+            });
+
+            // Llevamos el control de la altura máxima de esta fila
+            if (altoPieza > alturaFila) {
+              alturaFila = altoPieza;
+            }
+
+            xActual += anchoPieza; // Avanzamos el diamante en el eje X
+            piezasPendientes.splice(i, 1); // La sacamos de la lista
+            i--; // Reajustamos índice
           }
         }
 
-        if (espacioEncontradoIdx !== -1) {
-          const esp = espaciosLibres[espacioEncontradoIdx];
-          espaciosLibres.splice(espacioEncontradoIdx, 1);
-
-          const anchoFinal = rotada ? pieza.alto : pieza.ancho;
-          const altoFinal = rotada ? pieza.ancho : pieza.alto;
-
-          piezasEnEstaHoja.push({
-            ...pieza,
-            x: esp.x,
-            y: esp.y,
-            anchoDisplay: anchoFinal,
-            altoDisplay: altoFinal,
-            rotada: rotada
-          });
-
-          const anchoRestante = esp.w - anchoFinal;
-          const altoRestante = esp.h - altoFinal;
-
-          if (anchoRestante > 0) {
-            espaciosLibres.push({ x: esp.x + anchoFinal, y: esp.y, w: anchoRestante, h: esp.h });
-          }
-          if (altoRestante > 0) {
-            espaciosLibres.push({ x: esp.x, y: esp.y + altoFinal, w: anchoFinal, h: altoRestante });
-          }
-
-          espaciosLibres.sort((a, b) => (a.w * a.h) - (b.w * b.h));
-          piezasPendientes.splice(i, 1);
-          i--; 
+        // Si pudimos meter piezas en esta fila, las sumamos a la hoja y avanzamos en el eje Y
+        if (piezasFila.length > 0) {
+          piezasEnEstaHoja.push(...piezasFila);
+          yActual += alturaFila; // La próxima fila arranca justo abajo
+        } else {
+          // Si no entró nada en toda la fila, rompemos para pasar a otra hoja nueva
+          break;
         }
       }
 
-      const supHoja = hojaAncho * hojaAlto;
-      const supUtilizada = piezasEnEstaHoja.reduce((sum, p) => sum + (p.ancho * p.alto), 0);
-      const porcentajeUtilizado = ((supUtilizada / supHoja) * 100).toFixed(1);
-      const desperdicio = (100 - porcentajeUtilizado).toFixed(1);
+      // Si la hoja tiene piezas, calculamos sus m² y desperdicio
+      if (piezasEnEstaHoja.length > 0) {
+        const supHoja = hojaAncho * hojaAlto;
+        const supUtilizada = piezasEnEstaHoja.reduce((sum, p) => sum + (p.ancho * p.alto), 0);
+        const porcentajeUtilizado = ((supUtilizada / supHoja) * 100).toFixed(1);
+        const desperdicio = (100 - porcentajeUtilizado).toFixed(1);
 
-      hojasResultado.push({
-        piezas: piezasEnEstaHoja,
-        utilizado: porcentajeUtilizado,
-        desperdicio: desperdicio,
-        m2Utilizados: (supUtilizada / 1000000).toFixed(2)
-      });
+        hojasResultado.push({
+          piezas: piezasEnEstaHoja,
+          utilizado: porcentajeUtilizado,
+          desperdicio: desperdicio,
+          m2Utilizados: (supUtilizada / 1000000).toFixed(2)
+        });
+      } else {
+        // Evitar bucle infinito si una pieza es más grande que la plancha entera
+        break;
+      }
     }
 
     return hojasResultado;
@@ -160,7 +165,7 @@ export default function App() {
       </header>
 
       <div style={styles.grid}>
-        {/* PANEL IZQUIERDO: CONFIGURACIÓN Y CARGA */}
+        {/* PANEL IZQUIERDO: CARGA */}
         <div>
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>1. Medidas de la Hoja Base (mm)</h3>
@@ -236,12 +241,12 @@ export default function App() {
           )}
         </div>
 
-        {/* PANEL DERECHO: RENDIMIENTO Y MAPAS GRÁFICOS */}
+        {/* PANEL DERECHO: MAPAS */}
         <div>
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>3. Distribución y Hojas Necesarias</h3>
             {piezas.length === 0 ? (
-              <p style={{ color: '#9ca3af', textAlign: 'center', margin: '20px 0' }}>Cargá medidas a la izquierda para proyectar el mapa de corte del taller.</p>
+              <p style={{ color: '#9ca3af', textAlign: 'center', margin: '20px 0' }}>Cargá medidas a la izquierda para proyectar el mapa de corte.</p>
             ) : (
               <div>
                 <div style={styles.summaryBox}>
@@ -249,7 +254,7 @@ export default function App() {
                     <span>Planchas Requeridas:</span>
                     <span>{hojasOptimizadas.length} Hoja(s)</span>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>Optimizando cortes tipo guillotina con giro inteligente por descarte.</div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>Corte guillotina optimizado por niveles combinado de alta eficiencia.</div>
                 </div>
 
                 {hojasOptimizadas.map((hoja, index) => (
