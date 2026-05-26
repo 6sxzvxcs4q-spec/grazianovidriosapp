@@ -1,253 +1,382 @@
 import React, { useState } from 'react';
-import { calcularObraDVH } from './dvhCalculador';
-import './App.css';
+import { Plus, Trash2, Layers, Percent, Square, RefreshCw } from 'lucide-react';
 
-function App() {
-  const [listaPaños, setListaPaños] = useState([]);
-  const [ancho, setAncho] = useState('');
-  const [alto, setAlto] = useState('');
-  const [cantidad, setCantidad] = useState('1');
-  const [vidrioExt, setVidrioExt] = useState('Float 4mm');
-  const [camara, setCamara] = useState('9mm');
-  const [vidrioInt, setVidrioInt] = useState('Float 4mm');
+// ==========================================
+// LÓGICA DEL OPTIMIZADOR (Tu función original)
+// ==========================================
+export function optimizarCortes(piezas, placaAncho, placaAlto) {
+  if (piezas.length === 0) return { barrasUsadas: 0, desperdicioTotal: "0% (0.00 m²)", detalles: [], areaTotalHojasM2: 0 };
+
+  const lotes = [];
+  piezas.forEach(pieza => {
+    const loteExistente = lotes.find(l => 
+      (l.ancho === pieza.ancho && l.alto === pieza.alto) || 
+      (l.ancho === pieza.alto && l.alto === pieza.ancho)
+    );
+    if (loteExistente) {
+      loteExistente.cantidad++;
+    } else {
+      lotes.push({ ancho: pieza.ancho, alto: pieza.alto, cantidad: 1 });
+    }
+  });
+
+  const placas = [];
+  let areaVidriosNetoM2 = 0;
+
+  lotes.forEach(lote => {
+    areaVidriosNetoM2 += ((lote.ancho * lote.alto) / 1000000) * lote.cantidad;
+
+    const cantPorColA = Math.floor(placaAlto / lote.alto);
+    const cantPorFilaA = Math.floor(placaAncho / lote.ancho);
+    const totalA = cantPorColA * cantPorFilaA;
+
+    const cantPorColB = Math.floor(placaAlto / lote.ancho);
+    const cantPorFilaB = Math.floor(placaAncho / lote.alto);
+    const totalB = cantPorColB * cantPorFilaB;
+
+    let usarRotado = false;
+    if (totalB > totalA) {
+      usarRotado = true;
+    } else if (totalB === totalA) {
+      if ((placaAlto % lote.ancho) < (placaAlto % lote.alto)) usarRotado = true;
+    }
+
+    const anchoFinal = usarRotado ? lote.alto : lote.ancho;
+    const altoFinal = usarRotado ? lote.ancho : lote.alto;
+
+    for (let i = 0; i < lote.cantidad; i++) {
+      let ubicada = false;
+
+      for (let placa of placas) {
+        if (acomodarEnPlacaVertical(placa, anchoFinal, altoFinal, usarRotado)) {
+          ubicada = true;
+          break;
+        }
+      }
+
+      if (!ubicada) {
+        const nuevaPlaca = {
+          ancho: placaAncho,
+          alto: placaAlto,
+          piezasUbicadas: [],
+          columnas: []
+        };
+        acomodarEnPlacaVertical(nuevaPlaca, anchoFinal, altoFinal, usarRotado);
+        placas.push(nuevaPlaca);
+      }
+    }
+  });
+
+  const areaPlacaTotal = placas.length * (placaAncho * placaAlto);
+  const areaUtilizadaTotal = placas.reduce((acc, p) => {
+    return acc + p.piezasUbicadas.reduce((sum, pz) => sum + (pz.ancho * pz.alto), 0);
+  }, 0);
   
-  // PRECIOS A ELECCIÓN
-  const [precioVidrioExt, setPrecioVidrioExt] = useState('');
-  const [precioVidrioInt, setPrecioVidrioInt] = useState('');
-  const [precioCamaraML, setPrecioCamaraML] = useState('');
-  const [porcentajeAjuste, setPorcentajeAjuste] = useState('0');
+  const areaDesperdicio = areaPlacaTotal - areaUtilizadaTotal;
+  const porcentajeDesperdicio = ((areaDesperdicio / areaPlacaTotal) * 100).toFixed(1);
+  const metrosDesperdicio = (areaDesperdicio / 1000000).toFixed(2);
 
-  const agregarPaño = (e) => {
-    e.preventDefault();
-    if (!ancho || !alto || Number(cantidad) <= 0) return;
-
-    const nuevoPaño = {
-      id: Date.now() + Math.random(),
-      ancho: Number(ancho),
-      alto: Number(alto),
-      cantidad: Number(cantidad),
-      vidrioExt,
-      camara,
-      vidrioInt
-    };
-
-    setListaPaños([...listaPaños, nuevoPaño]);
-    setAncho('');
-    setAlto('');
-    setCantidad('1');
+  return {
+    barrasUsadas: placas.length,
+    desperdicioTotal: `${porcentajeDesperdicio}% (${metrosDesperdicio} m²)`,
+    detalles: placas,
+    areaTotalHojasM2: areaVidriosNetoM2
   };
+}
 
-  const eliminarPaño = (id) => {
-    setListaPaños(listaPaños.filter(p => p.id !== id));
-  };
-
-  const limpiarObra = () => {
-    setListaPaños([]);
-  };
-
-  const mandarAImprimir = () => {
-    window.print();
-  };
-
-  // PROCESADOR DE TOTALES GENERALES
-  const totales = calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML);
-
-  // Cálculo del presupuesto comercial definitivo para el bloque de abajo
-  let totalPresupuestoFinal = null;
-  if (totales.costoConDesperdicio > 0) {
-    const factorAjusteComercial = 1 + (Number(porcentajeAjuste) / 100);
-    const presupuestoFinal = totales.costoConDesperdicio * factorAjusteComercial;
-
-    totalPresupuestoFinal = presupuestoFinal.toLocaleString('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    });
+function acomodarEnPlacaVertical(placa, ancho, alto, rotada) {
+  for (let col of placa.columnas) {
+    if (ancho <= col.ancho && (col.yActual + alto) <= placa.alto) {
+      placa.piezasUbicadas.push({
+        ancho: ancho,
+        alto: alto,
+        x: col.x,
+        y: col.yActual,
+        rotada: rotada
+      });
+      col.yActual += alto;
+      return true;
+    }
   }
 
-  // Función interna para calcular los precios de la fila (Unitario y Subtotal)
-  const obtenerPreciosItem = (p) => {
-    if (!precioVidrioExt || !precioVidrioInt || !precioCamaraML) {
-      return { unitario: "$ 0,00", subtotal: "$ 0,00" };
+  const xSiguiente = placa.columnas.length > 0 
+    ? placa.columnas[placa.columnas.length - 1].x + placa.columnas[placa.columnas.length - 1].ancho
+    : 0;
+
+  if (xSiguiente + ancho <= placa.ancho && alto <= placa.alto) {
+    placa.columnas.push({ x: xSiguiente, ancho: ancho, yActual: alto });
+    placa.piezasUbicadas.push({
+      ancho: ancho,
+      alto: alto,
+      x: xSiguiente,
+      y: 0,
+      rotada: rotada
+    });
+    return true;
+  }
+
+  return false;
+}
+
+// ==========================================
+// COMPONENTE PRINCIPAL APP
+// ==========================================
+export default function App() {
+  // Medidas por defecto de la plancha de vidrio estándar (en mm)
+  const [placaAncho, setPlacaAncho] = useState(3210);
+  const [placaAlto, setPlacaAlto] = useState(2400);
+
+  // Estados para el formulario de piezas
+  const [piezas, setPiezas] = useState([]);
+  const [anchoInput, setAnchoInput] = useState('');
+  const [altoInput, setAltoInput] = useState('');
+  const [cantInput, setCantInput] = useState('1');
+
+  // Agregar piezas a la lista
+  const agregarPiezas = (e) => {
+    e.preventDefault();
+    if (!anchoInput || !altoInput || parseInt(cantInput) <= 0) return;
+
+    const nuevasPiezas = [];
+    for (let i = 0; i < parseInt(cantInput); i++) {
+      nuevasPiezas.push({
+        id: Date.now() + Math.random(),
+        ancho: parseInt(anchoInput),
+        alto: parseInt(altoInput)
+      });
     }
-    
-    const anchoM = p.ancho / 1000;
-    const altoM = p.alto / 1000;
-    const area = anchoM * altoM;
-    const perimetro = (anchoM * 2) + (altoM * 2);
 
-    const costoInsumosBase = (area * Number(precioVidrioExt)) + (area * Number(precioVidrioInt)) + (perimetro * Number(precioCamaraML));
-    // Agregamos el 15% de desperdicio fijo y el ajuste comercial de arriba
-    const costoConDesperdicio = costoInsumosBase * 1.15;
-    const factorAjuste = 1 + (Number(porcentajeAjuste) / 100);
-    
-    const precioFinalUnitario = costoConDesperdicio * factorAjuste;
-    const precioFinalSubtotal = precioFinalUnitario * p.cantidad;
-
-    return {
-      unitario: precioFinalUnitario.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }),
-      subtotal: precioFinalSubtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
-    };
+    setPiezas([...piezas, ...nuevasPiezas]);
+    setAnchoInput('');
+    setAltoInput('');
+    setCantInput('1');
   };
 
+  // Eliminar una pieza individual de la lista
+  const eliminarPieza = (id) => {
+    setPiezas(piezas.filter(p => p.id !== id));
+  };
+
+  // Limpiar toda la carga
+  const limpiarTodo = () => {
+    setPiezas([]);
+  };
+
+  // Ejecutar el optimizador con los datos actuales
+  const resultado = optimizarCortes(piezas, placaAncho, placaAlto);
+
   return (
-    <div className="container">
-      {/* Encabezado exclusivo para Impresión / PDF */}
-      <div className="print-header">
-        <div className="header-logo-container">
-          <img src="/logo.jpg" alt="Graziano Vidrios Logo" className="logo-app" onError={(e) => e.target.style.display='none'} />
-          <div>
-            <h1>Graziano Vidrios - Presupuesto Técnico DVH</h1>
-            <p>Fecha: {new Date().toLocaleDateString('es-AR')}</p>
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
+      <header className="max-w-6xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-blue-400 tracking-tight">Graziano Vidrios</h1>
+          <p className="text-gray-400 text-sm">Optimizador Limpio por M² Reales</p>
+        </div>
+        {piezas.length > 0 && (
+          <button 
+            onClick={limpiarTodo}
+            className="flex items-center gap-2 bg-red-900/40 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg text-sm transition-all border border-red-800"
+          >
+            <RefreshCw size={16} /> Limpiar Todo
+          </button>
+        )}
+      </header>
+
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* COLUMNA IZQUIERDA: CONFIGURACIÓN Y CARGA */}
+        <div className="space-y-6 lg:col-span-1">
+          {/* Medidas de la Placa */}
+          <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg">
+            <h2 className="text-lg font-semibold mb-4 text-blue-300 flex items-center gap-2">
+              <Square size={18} /> Medidas de la Hoja (mm)
+            </h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Ancho (X)</label>
+                <input 
+                  type="number" 
+                  value={placaAncho} 
+                  onChange={(e) => setPlacaAncho(parseInt(e.target.value) || 0)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Alto (Y)</label>
+                <input 
+                  type="number" 
+                  value={placaAlto} 
+                  onChange={(e) => setPlacaAlto(parseInt(e.target.value) || 0)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Formulario de Carga */}
+          <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg">
+            <h2 className="text-lg font-semibold mb-4 text-emerald-400 flex items-center gap-2">
+              <Plus size={18} /> Cargar Vidrios a Cortar
+            </h2>
+            <form onSubmit={agregarPiezas} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Ancho (mm)</label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 1200"
+                    value={anchoInput} 
+                    onChange={(e) => setAnchoInput(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Alto (mm)</label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 800"
+                    value={altoInput} 
+                    onChange={(e) => setAltoInput(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Cantidad de piezas</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  value={cantInput} 
+                  onChange={(e) => setCantInput(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+              <button 
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus size={18} /> Agregar a la Lista
+              </button>
+            </form>
+          </div>
+
+          {/* Lista de Piezas Cargadas */}
+          <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg max-h-80 overflow-y-auto">
+            <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">
+              Piezas en espera ({piezas.length})
+            </h3>
+            {piezas.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No hay piezas cargadas aún.</p>
+            ) : (
+              <div className="space-y-2">
+                {piezas.map((pieza) => (
+                  <div key={pieza.id} className="flex justify-between items-center bg-gray-900 p-2.5 rounded border border-gray-800 text-sm">
+                    <span>{pieza.ancho} x {pieza.alto} mm</span>
+                    <button 
+                      onClick={() => eliminarPieza(pieza.id)} 
+                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-gray-800 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Encabezado en Pantalla */}
-      <div className="app-header no-print">
-        <img src="/logo.jpg" alt="Graziano Vidrios Logo" className="logo-app" onError={(e) => e.target.style.display='none'} />
-        <h1>Cotizador Desglosado DVH - Graziano Vidrios</h1>
-      </div>
+        {/* COLUMNA DERECHA: RESULTADOS DE OPTIMIZACIÓN */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Tarjetas de Resumen Numérico */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gradient-to-br from-blue-950 to-gray-800 p-5 rounded-xl border border-blue-900 shadow-md">
+              <div className="text-blue-400 mb-1 flex items-center gap-2 text-sm font-medium">
+                <Layers size={16} /> Hojas Necesarias
+              </div>
+              <div className="text-3xl font-bold">{resultado.barrasUsadas}</div>
+              <p className="text-xs text-gray-400 mt-1">Placas de {placaAncho}x{placaAlto}</p>
+            </div>
 
-      {/* PANEL DE PRECIOS A ELECCIÓN */}
-      <div className="config-seccion no-print" style={{ backgroundColor: '#f7fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
-        <h4 style={{ margin: '0 0 12px 0', color: '#2d3748' }}>Configuración de Precios ($)</h4>
-        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-          <div className="input-group">
-            <label>Precio Vidrio Ext. M²:</label>
-            <input type="number" value={precioVidrioExt} onChange={(e) => setPrecioVidrioExt(e.target.value)} placeholder="Ej: 25000" style={{ padding: '6px', width: '110px' }} />
-          </div>
-          <div className="input-group">
-            <label>Precio Vidrio Int. M²:</label>
-            <input type="number" value={precioVidrioInt} onChange={(e) => setPrecioVidrioInt(e.target.value)} placeholder="Ej: 25000" style={{ padding: '6px', width: '110px' }} />
-          </div>
-          <div className="input-group">
-            <label>Precio Cámara ML:</label>
-            <input type="number" value={precioCamaraML} onChange={(e) => setPrecioCamaraML(e.target.value)} placeholder="Ej: 8000" style={{ padding: '6px', width: '110px' }} />
-          </div>
-          <div className="input-group">
-            <label>Ajuste Comercial % (+/-):</label>
-            <input type="number" value={porcentajeAjuste} onChange={(e) => setPorcentajeAjuste(e.target.value)} placeholder="Ej: 10" style={{ padding: '6px', width: '90px' }} />
-          </div>
-        </div>
-      </div>
+            <div className="bg-gradient-to-br from-emerald-950 to-gray-800 p-5 rounded-xl border border-emerald-900 shadow-md">
+              <div className="text-emerald-400 mb-1 flex items-center gap-2 text-sm font-medium">
+                <Square size={16} /> Superficie Neta
+              </div>
+              <div className="text-3xl font-bold">{resultado.areaTotalHojasM2.toFixed(2)} m²</div>
+              <p className="text-xs text-gray-400 mt-1">Suma de m² reales de vidrio</p>
+            </div>
 
-      {/* FORMULARIO DE CARGA CONTINUA */}
-      <form onSubmit={agregarPaño} className="form-piezas no-print" style={{ marginBottom: '25px' }}>
-        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', width: '100%' }}>
-          <div className="input-group">
-            <label>Ancho (mm):</label>
-            <input type="number" value={ancho} onChange={(e) => setAncho(e.target.value)} placeholder="Ej: 1200" required />
+            <div className="bg-gradient-to-br from-amber-950 to-gray-800 p-5 rounded-xl border border-amber-900 shadow-md">
+              <div className="text-amber-400 mb-1 flex items-center gap-2 text-sm font-medium">
+                <Percent size={16} /> Desperdicio Total
+              </div>
+              <div className="text-3xl font-bold text-amber-300">{resultado.desperdicioTotal.split(' ')[0]}</div>
+              <p className="text-xs text-gray-400 mt-1">Equivale a {resultado.desperdicioTotal.split(' ')[1] || '0.00'} m²</p>
+            </div>
           </div>
-          <div className="input-group">
-            <label>Alto (mm):</label>
-            <input type="number" value={alto} onChange={(e) => setAlto(e.target.value)} placeholder="Ej: 1100" required />
-          </div>
-          <div className="input-group">
-            <label>Cantidad:</label>
-            <input type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} min="1" required />
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', width: '100%', marginTop: '10px' }}>
-          <div className="input-group">
-            <label>Vidrio Exterior:</label>
-            <select value={vidrioExt} onChange={(e) => setVidrioExt(e.target.value)} style={{ padding: '8px', borderRadius: '4px' }}>
-              <option value="Float 4mm">Float 4mm</option>
-              <option value="Float 5mm">Float 5mm</option>
-              <option value="Float 6mm">Float 6mm</option>
-              <option value="Laminado 3+3">Laminado 3+3</option>
-              <option value="Laminado 4+4">Laminado 4+4</option>
-            </select>
-          </div>
-          <div className="input-group">
-            <label>Cámara:</label>
-            <select value={camara} onChange={(e) => setCamara(e.target.value)} style={{ padding: '8px', borderRadius: '4px' }}>
-              <option value="6mm">Cámara 6mm</option>
-              <option value="9mm">Cámara 9mm</option>
-              <option value="12mm">Cámara 12mm</option>
-            </select>
-          </div>
-          <div className="input-group">
-            <label>Vidrio Interior:</label>
-            <select value={vidrioInt} onChange={(e) => setVidrioInt(e.target.value)} style={{ padding: '8px', borderRadius: '4px' }}>
-              <option value="Float 4mm">Float 4mm</option>
-              <option value="Float 5mm">Float 5mm</option>
-              <option value="Float 6mm">Float 6mm</option>
-              <option value="Laminado 3+3">Laminado 3+3</option>
-              <option value="Laminado 4+4">Laminado 4+4</option>
-            </select>
-          </div>
-        </div>
-        <button type="submit" className="btn-add" style={{ marginTop: '15px', width: '100%' }}>Agregar Paño a la Lista</button>
-      </form>
+          {/* Detalle Visual/Esquema de las Placas */}
+          <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+            <h2 className="text-lg font-semibold mb-4 text-gray-200">Esquema de Distribución por Hoja</h2>
+            {resultado.detalles.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed border-gray-700 rounded-xl text-gray-500">
+                Cargá piezas a la izquierda para ver la distribución del corte.
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {resultado.detalles.map((placa, index) => (
+                  <div key={index} className="border border-gray-700 rounded-lg p-4 bg-gray-900/50">
+                    <h3 className="text-sm font-medium text-blue-400 mb-3">Hoja N° {index + 1}</h3>
+                    
+                    {/* Contenedor proporcional del vidrio */}
+                    <div 
+                      className="relative bg-gray-900 border-2 border-gray-600 rounded mx-auto overflow-hidden shadow-inner"
+                      style={{
+                        width: '100%',
+                        aspectRatio: `${placaAncho} / ${placaAlto}`,
+                        maxWidth: '500px'
+                      }}
+                    >
+                      {/* Dibujo de las piezas ubicadas dentro de la placa */}
+                      {placa.piezasUbicadas.map((pz, pzIdx) => {
+                        // Calculamos porcentajes relativos para el renderizado CSS
+                        const pctX = (pz.x / placaAncho) * 100;
+                        const pctY = (pz.y / placaAlto) * 100;
+                        const pctW = (pz.ancho / placaAncho) * 100;
+                        const pctH = (pz.alto / placaAlto) * 100;
 
-      {/* TABLA DE LA OBRA COMPLETA */}
-      {listaPaños.length > 0 && (
-        <div className="lista-seccion">
-          <h3>Detalle de la Obra ({totales.totalPaños} posiciones):</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '25px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#102a43', color: 'white', textAlign: 'left' }}>
-                <th style={{ padding: '10px' }}>Cant</th>
-                <th style={{ padding: '10px' }}>Medidas (mm)</th>
-                <th style={{ padding: '10px' }}>Estructura DVH</th>
-                <th style={{ padding: '10px' }}>Precio Unit.</th>
-                <th style={{ padding: '10px' }}>Subtotal Item</th>
-                <th style={{ padding: '10px' }} className="no-print">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listaPaños.map((p) => {
-                const precios = obtenerPreciosItem(p);
-                return (
-                  <tr key={p.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px' }}><strong>{p.cantidad}</strong></td>
-                    <td style={{ padding: '10px' }}>{p.ancho} x {p.alto} mm</td>
-                    <td style={{ padding: '10px' }}><span style={{ color: '#023e8a', fontWeight: '500' }}>{p.vidrioExt} + C{p.camara} + {p.vidrioInt}</span></td>
-                    <td style={{ padding: '10px', color: '#4a5568' }}>{precios.unitario}</td>
-                    <td style={{ padding: '10px', color: '#2b6cb0', fontWeight: 'bold' }}>{precios.subtotal}</td>
-                    <td style={{ padding: '10px' }} className="no-print">
-                      <button onClick={() => eliminarPaño(p.id)} style={{ backgroundColor: '#e63946', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Quitar</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {/* DESGLOSE Y PRESUPUESTO FINAL */}
-          <div className="resumen-datos" style={{ backgroundColor: '#ebf8ff', padding: '20px', borderRadius: '8px', borderLeft: '5px solid #2b6cb0' }}>
-            <h2 style={{ color: '#2c5282', marginTop: 0 }}>Cómputo Técnico y Resumen</h2>
-            <p><strong>Unidades totales a fabricar:</strong> {totales.totalPaños} paños</p>
-            <p><strong>M² Netos Vidrio Exterior:</strong> {totales.totalM2VidrioExt} m²</p>
-            <p><strong>M² Netos Vidrio Interior:</strong> {totales.totalM2VidrioInt} m²</p>
-            <p><strong>Metros lineales de Cámara/Perfil:</strong> {totales.totalMetrosPerfil} ML</p>
-            <p style={{ color: '#4a5568', fontSize: '13px', fontStyle: 'italic', marginTop: '5px' }}>
-              * El sistema incluye automáticamente un +15% por desperdicio de corte en los valores finales.
-            </p>
-            
-            {totalPresupuestoFinal && (
-              <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px dashed #bee3f8' }}>
-                {Number(porcentajeAjuste) !== 0 && (
-                  <p style={{ fontSize: '14px', color: '#4a5568', margin: '0 0 5px 0' }}> Margen de Obra: {Number(porcentajeAjuste) > 0 ? `+${porcentajeAjuste}` : porcentajeAjuste}%</p>
-                )}
-                <p style={{ fontSize: '26px', color: '#2f855a', margin: 0 }}>
-                  <strong>PRESUPUESTO FINAL TOTAL: {totalPresupuestoFinal}</strong>
-                </p>
+                        return (
+                          <div
+                            key={pzIdx}
+                            className="absolute border border-blue-500 bg-blue-500/20 text-[9px] font-bold text-blue-200 flex flex-col items-center justify-center overflow-hidden transition-all hover:bg-blue-500/40"
+                            style={{
+                              left: `${pctX}%`,
+                              top: `${pctY}%`,
+                              width: `${pctW}%`,
+                              height: `${pctH}%`,
+                            }}
+                            title={`${pz.ancho}x${pz.alto}mm ${pz.rotada ? '(Rotado)' : ''}`}
+                          >
+                            <span>{pz.ancho}</span>
+                            <span className="text-[7px] text-gray-400">x</span>
+                            <span>{pz.alto}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="text-right text-xs text-gray-500 mt-2">
+                      Piezas en esta hoja: {placa.piezasUbicadas.length}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="acciones-recuadro no-print" style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
-            <button onClick={mandarAImprimir} className="btn-optimizar" style={{ flex: 1, padding: '12px', fontSize: '16px' }}>
-              🖨️ Imprimir / Guardar PDF
-            </button>
-            <button onClick={limpiarObra} className="btn-limpiar">Borrar Todo</button>
-          </div>
         </div>
-      )}
+      </main>
     </div>
   );
 }
-
-export default App;
