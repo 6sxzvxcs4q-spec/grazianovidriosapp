@@ -25,20 +25,16 @@ const styles = {
 };
 
 export default function App() {
-  // Estados de la plancha base
+  // Medidas por defecto actualizadas a 3600 x 2500
   const [hojaAncho, setHojaAncho] = useState(3600);
   const [hojaAlto, setHojaAlto] = useState(2500);
 
-  // Estados del formulario de carga
   const [ancho, setAncho] = useState('');
   const [alto, setAlto] = useState('');
   const [cantidad, setCantidad] = useState(1);
   const [etiqueta, setEtiqueta] = useState('');
-
-  // Lista de piezas desglosadas a cortar
   const [piezas, setPiezas] = useState([]);
 
-  // Agregar piezas mapeando por cantidad
   const agregarPieza = (e) => {
     e.preventDefault();
     if (!ancho || !alto || cantidad < 1) return;
@@ -67,9 +63,8 @@ export default function App() {
     setPiezas([]);
   };
 
-  // --- ALGORITMO GUILLOTINA AVANZADO (MULTI-HOJA) ---
+  // --- ALGORITMO GUILLOTINA INTELIGENTE CON ROTACIÓN INDIVIDUAL ---
   const optimizarCortes = () => {
-    // Ordenamos de mayor a menor superficie para optimizar mejor
     let piezasPendientes = [...piezas].sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
     const hojasResultado = [];
 
@@ -80,8 +75,9 @@ export default function App() {
       for (let i = 0; i < piezasPendientes.length; i++) {
         const pieza = piezasPendientes[i];
         let espacioEncontradoIdx = -1;
+        let rotada = false;
 
-        // Buscar primer espacio donde entre (probando orientación normal)
+        // 1. Probar en orientación ORIGINAL
         for (let j = 0; j < espaciosLibres.length; j++) {
           const esp = espaciosLibres[j];
           if (pieza.ancho <= esp.w && pieza.alto <= esp.h) {
@@ -90,38 +86,50 @@ export default function App() {
           }
         }
 
+        // 2. Si no entra, probar ROTANDO EL VIDRIO SOLO 90°
+        if (espacioEncontradoIdx === -1) {
+          for (let j = 0; j < espaciosLibres.length; j++) {
+            const esp = espaciosLibres[j];
+            if (pieza.alto <= esp.w && pieza.ancho <= esp.h) {
+              espacioEncontradoIdx = j;
+              rotada = true;
+              break;
+            }
+          }
+        }
+
         if (espacioEncontradoIdx !== -1) {
           const esp = espaciosLibres[espacioEncontradoIdx];
           espaciosLibres.splice(espacioEncontradoIdx, 1);
 
-          // Guardamos posición calculada
+          const anchoFinal = rotada ? pieza.alto : pieza.ancho;
+          const altoFinal = rotada ? pieza.ancho : pieza.alto;
+
           piezasEnEstaHoja.push({
             ...pieza,
             x: esp.x,
-            y: esp.y
+            y: esp.y,
+            anchoDisplay: anchoFinal,
+            altoDisplay: altoFinal,
+            rotada: rotada
           });
 
-          // Guillotina: Dividimos el espacio restante en dos nuevos rectángulos
-          const anchoRestante = esp.w - pieza.ancho;
-          const altoRestante = esp.h - pieza.alto;
+          const anchoRestante = esp.w - anchoFinal;
+          const altoRestante = esp.h - altoFinal;
 
           if (anchoRestante > 0) {
-            espaciosLibres.push({ x: esp.x + pieza.ancho, y: esp.y, w: anchoRestante, h: esp.h });
+            espaciosLibres.push({ x: esp.x + anchoFinal, y: esp.y, w: anchoRestante, h: esp.h });
           }
           if (altoRestante > 0) {
-            espaciosLibres.push({ x: esp.x, y: esp.y + pieza.alto, w: pieza.ancho, h: altoRestante });
+            espaciosLibres.push({ x: esp.x, y: esp.y + altoFinal, w: anchoFinal, h: altoRestante });
           }
 
-          // Ordenamos espacios libres más chicos primero para optimizar esquinas
           espaciosLibres.sort((a, b) => (a.w * a.h) - (b.w * b.h));
-
-          // Quitamos de la lista general de pendientes
           piezasPendientes.splice(i, 1);
-          i--; // Reajustar índice
+          i--; 
         }
       }
 
-      // Calcular rendimiento de esta hoja
       const supHoja = hojaAncho * hojaAlto;
       const supUtilizada = piezasEnEstaHoja.reduce((sum, p) => sum + (p.ancho * p.alto), 0);
       const porcentajeUtilizado = ((supUtilizada / supHoja) * 100).toFixed(1);
@@ -141,7 +149,6 @@ export default function App() {
   const hojasOptimizadas = optimizarCortes();
   const totalM2Reales = piezas.reduce((sum, p) => sum + (p.ancho * p.alto) / 1000000, 0).toFixed(2);
 
-  // Factor de escala dinámico para que el mapa calce en cualquier pantalla
   const escalaMax = 280; 
   const factorEscala = Math.min(escalaMax / hojaAncho, escalaMax / hojaAlto);
 
@@ -242,7 +249,7 @@ export default function App() {
                     <span>Planchas Requeridas:</span>
                     <span>{hojasOptimizadas.length} Hoja(s)</span>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>Optimizando cortes tipo guillotina para evitar quiebres falsos.</div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>Optimizando cortes tipo guillotina con giro inteligente por descarte.</div>
                 </div>
 
                 {hojasOptimizadas.map((hoja, index) => (
@@ -268,8 +275,8 @@ export default function App() {
                           position: 'absolute',
                           left: `${p.x * factorEscala}px`,
                           top: `${p.y * factorEscala}px`,
-                          width: `${p.ancho * factorEscala}px`,
-                          height: `${p.alto * factorEscala}px`,
+                          width: `${(p.anchoDisplay || p.ancho) * factorEscala}px`,
+                          height: `${(p.altoDisplay || p.alto) * factorEscala}px`,
                           backgroundColor: `hsl(${(pIdx * 65) % 360}, 65%, 35%)`,
                           border: '1px solid rgba(255,255,255,0.4)',
                           boxSizing: 'border-box',
@@ -281,10 +288,10 @@ export default function App() {
                           overflow: 'hidden'
                         }}>
                           <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
-                            {p.ancho}x{p.alto}
+                            {p.ancho}x{p.alto} {p.rotada ? '🔄' : ''}
                           </span>
                           <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-                            {p.etiqueta}
+                            {p.rotada ? '(Girado)' : p.etiqueta}
                           </span>
                         </div>
                       ))}
