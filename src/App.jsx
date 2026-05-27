@@ -1,155 +1,6 @@
 import React, { useState } from 'react';
+import { calcularObraDVH, optimizarCortes } from './utils';
 
-// ==========================================
-// 1. FUNCIONES LÓGICAS (Fuera del Componente)
-// ==========================================
-
-// Calculador Avanzado Desglosado de DVH - Graziano Vidrios
-export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, precioCamaraML, porcentajeDesperdicio = 15) {
-  let totalM2VidrioExt = 0;
-  let totalM2VidrioInt = 0;
-  let totalMetrosPerfil = 0;
-  let totalPaños = 0;
-  let costoSubtotalInsumos = 0;
-
-  listaPaños.forEach(paño => {
-    const anchoM = paño.ancho / 1000;
-    const altoM = paño.alto / 1000;
-    const areaPaño = anchoM * altoM;
-    const perimetroPaño = (anchoM * 2) + (altoM * 2);
-
-    totalM2VidrioExt += (areaPaño * paño.cantidad);
-    totalM2VidrioInt += (areaPaño * paño.cantidad);
-    totalMetrosPerfil += (perimetroPaño * paño.cantidad);
-    totalPaños += paño.cantidad;
-
-    const costoVidrioExt = areaPaño * Number(precioVidrioExt);
-    const costoVidrioInt = areaPaño * Number(precioVidrioInt);
-    const costoCamara = perimetroPaño * Number(precioCamaraML);
-    
-    costoSubtotalInsumos += (costoVidrioExt + costoVidrioInt + costoCamara) * paño.cantidad;
-  });
-
-  const factorDesperdicio = 1 + (Number(porcentajeDesperdicio) / 100);
-  const costoConDesperdicio = costoSubtotalInsumos * factorDesperdicio;
-
-  return {
-    totalPaños,
-    totalM2VidrioExt: Number(totalM2VidrioExt.toFixed(2)),
-    totalM2VidrioInt: Number(totalM2VidrioInt.toFixed(2)),
-    totalMetrosPerfil: Number(totalMetrosPerfil.toFixed(2)),
-    costoSubtotalInsumos: Number(costoSubtotalInsumos.toFixed(2)),
-    costoConDesperdicio: Number(costoConDesperdicio.toFixed(2))
-  };
-}
-
-// Algoritmo de Corte Guillotina 2D con Rotación Inteligente
-function optimizarCortes(listaPaños) {
-  const HOJA_ANCHO = 3600;
-  const HOJA_ALTO = 2500;
-  const AREA_TOTAL_HOJA = HOJA_ANCHO * HOJA_ALTO;
-
-  let todosPaños = [];
-  listaPaños.forEach(p => {
-    for (let i = 0; i < p.cantidad; i++) {
-      todosPaños.push({ id: `${p.id}-${i}`, ancho: p.ancho, alto: p.alto });
-    }
-  });
-
-  // Ordenamos de mayor a menor por el lado más largo (Estrategia clásica de taller)
-  todosPaños.sort((a, b) => Math.max(b.ancho, b.alto) - Math.max(a.ancho, a.alto));
-
-  let hojas = [];
-
-  todosPaños.forEach(paño => {
-    let acomodado = false;
-
-    // Intentar meter en hojas existentes
-    for (let hoja of hojas) {
-      for (let espacio de hoja.espaciosLibres) {
-        let w = paño.ancho;
-        let h = paño.alto;
-        let rotado = false;
-
-        let encajaNormal = (w <= espacio.w && h <= espacio.h);
-        let encajaRotado = (h <= espacio.w && w <= espacio.h);
-
-        if (!encajaNormal && !encajaRotado) continue;
-
-        // Decidir orientación ideal para dejar el remanente más largo
-        if (encajaRotado && (!encajaNormal || (espacio.w - h > espacio.w - w))) {
-          w = paño.alto;
-          h = paño.ancho;
-          rotado = true;
-        }
-
-        // Registrar el paño con coordenadas reales dentro del contenedor visual
-        hoja.paños.push({
-          ancho: w,
-          alto: h,
-          x: espacio.x,
-          y: espacio.y,
-          rotado: rotado
-        });
-
-        hoja.areaUsada += (w * h);
-
-        // Dividir el espacio remanente usando corte guillotina limpio
-        let espaciosNuevos = [];
-        if (espacio.w - w > 0) {
-          espaciosNuevos.push({ x: espacio.x + w, y: espacio.y, w: espacio.w - w, h: h });
-        }
-        if (espacio.h - h > 0) {
-          espaciosNuevos.push({ x: espacio.x, y: espacio.y + h, w: espacio.w, h: espacio.h - h });
-        }
-
-        // Remover el espacio viejo y sumar los dos nuevos sectores disponibles
-        hoja.espaciosLibres = hoja.espaciosLibres.filter(e => e !== espacio).concat(espaciosNuevos);
-        
-        // Reordenar espacios libres más chicos primero para aprovechar retazos
-        hoja.espaciosLibres.sort((a, b) => (a.w * a.h) - (b.w * b.h));
-
-        acomodado = true;
-        break;
-      }
-      if (acomodado) break;
-    }
-
-    // Si no entró en ninguna hoja, abrimos una plancha nueva de 3600x2500
-    if (!acomodado) {
-      let w = paño.ancho;
-      let h = paño.alto;
-      let rotado = false;
-
-      // Si de parado aprovecha mejor la base de la hoja, lo rotamos al entrar
-      if (h <= HOJA_ANCHO && w <= HOJA_ALTO && h > w) {
-        w = paño.alto;
-        h = paño.ancho;
-        rotado = true;
-      }
-
-      let nuevaHoja = {
-        paños: [{ ancho: w, alto: h, x: 0, y: 0, rotado: rotado }],
-        areaUsada: w * h,
-        espaciosLibres: []
-      };
-
-      if (HOJA_ANCHO - w > 0) nuevaHoja.espaciosLibres.push({ x: w, y: 0, w: HOJA_ANCHO - w, h: h });
-      if (HOJA_ALTO - h > 0) nuevaHoja.espaciosLibres.push({ x: 0, y: h, w: HOJA_ANCHO, h: HOJA_ALTO - h });
-
-      hojas.push(nuevaHoja);
-    }
-  });
-
-  return hojas.map(h => ({
-    paños: h.paños,
-    rendimiento: Number(((h.areaUsada / AREA_TOTAL_HOJA) * 100).toFixed(1))
-  }));
-}
-
-// ==========================================
-// 2. COMPONENTE PRINCIPAL
-// ==========================================
 export default function App() {
   const [pestana, setPestana] = useState('optimizador');
 
@@ -162,7 +13,7 @@ export default function App() {
   const [listaOptimizador, setListaOptimizador] = useState([]);
   const [listaDVH, setListaDVH] = useState([]);
 
-  // ESTADOS DE COSTOS DVH (Asegurados)
+  // Estados de Costos DVH
   const [precioVidrioExt, setPrecioVidrioExt] = useState('');
   const [precioVidrioInt, setPrecioVidrioInt] = useState('');
   const [precioCamara, setPrecioCamara] = useState('');
@@ -224,10 +75,10 @@ export default function App() {
         </button>
       </div>
 
-      {/* CONTENIDO PRINCIPAL ASIMÉTRICO */}
+      {/* Contenido Principal */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '30px', maxWidth: '1200px', margin: '0 auto' }}>
         
-        {/* COLUMNA IZQUIERDA: FORMULARIOS DE CARGA */}
+        {/* Columna Izquierda: Formularios */}
         <div style={{ backgroundColor: '#161b22', padding: '25px', borderRadius: '8px', border: '1px solid #30363d', height: 'fit-content' }}>
           
           {pestana === 'optimizador' ? (
@@ -294,7 +145,7 @@ export default function App() {
                 <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={inputEstilo} />
               </div>
 
-              {/* AQUÍ VOLVIERON LOS COSTOS DVH COMPLETOS */}
+              {/* Sección de Costos */}
               <div style={{ borderTop: '1px solid #30363d', paddingTop: '15px', marginTop: '15px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
                   <div>
@@ -326,7 +177,7 @@ export default function App() {
 
         </div>
 
-        {/* COLUMNA DERECHA: RESULTADOS MAPEADOS A ESCALA VIRTUAL */}
+        {/* Columna Derecha: Resultados */}
         <div style={{ backgroundColor: '#161b22', padding: '25px', borderRadius: '8px', border: '1px solid #30363d' }}>
           
           {pestana === 'optimizador' ? (
@@ -342,10 +193,10 @@ export default function App() {
                       <span style={{ color: '#34d058', fontWeight: 'bold' }}>Rendimiento: {hoja.rendimiento} %</span>
                     </div>
                     
-                    {/* CONTENEDOR CON COORDENADAS ABSOLUTAS PROPORCIONALES */}
+                    {/* Contenedor Proporcional Absoluto */}
                     <div style={{ 
                       width: '100%', 
-                      paddingBottom: '69.4%', /* Proporción exacta de 2500/3600 */
+                      paddingBottom: '69.4%', 
                       border: '2px dashed #ff4444', 
                       position: 'relative', 
                       backgroundColor: '#0a0e14', 
@@ -353,7 +204,6 @@ export default function App() {
                       overflow: 'hidden'
                     }}>
                       {hoja.paños.map((p, pIdx) => {
-                        // Convertimos las coordenadas de milímetros a porcentajes de la hoja base
                         const leftPct = (p.x / 3600) * 100;
                         const topPct = (p.y / 2500) * 100;
                         const widthPct = (p.ancho / 3600) * 100;
@@ -379,7 +229,7 @@ export default function App() {
                             lineHeight: '1.1'
                           }}>
                             <span style={{ fontWeight: 'bold' }}>{p.ancho}x{p.alto}</span>
-                            {p.rotado && <span style={{ fontSize: '7px', color: '#ffb454' }}>[GIRADO]</span>}
+                            {p.rotated || p.rotado && <span style={{ fontSize: '7px', color: '#ffb454' }}>[GIRADO]</span>}
                           </div>
                         );
                       })}
@@ -457,9 +307,7 @@ export default function App() {
   );
 }
 
-// ==========================================
-// 3. ESTILOS EN LÍNEA (CSS-in-JS)
-// ==========================================
+// Estilos CSS-in-JS
 const inputEstilo = {
   width: '100%',
   padding: '10px',
