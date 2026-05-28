@@ -40,7 +40,7 @@ export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, p
 }
 
 // ===================================================================
-// Algoritmo de Corte Guillotina Avanzado - Graziano Vidrios
+// Algoritmo de Distribución por Filas a Escala Real (Graziano Vidrios)
 // ===================================================================
 export function optimizarCortes(listaPaños) {
   const HOJA_ANCHO = 3600;
@@ -50,98 +50,110 @@ export function optimizarCortes(listaPaños) {
   let todosPaños = [];
   listaPaños.forEach(p => {
     for (let i = 0; i < p.cantidad; i++) {
-      todosPaños.push({ id: `${p.id}-${i}`, ancho: p.ancho, alto: p.alto });
+      // Rotación Inteligente previa: Evaluamos cuál orientación aprovecha mejor el ancho de la fila
+      let w = p.ancho;
+      let h = p.alto;
+      let rotado = false;
+
+      // Si acostado es más chico o igual que parado, lo dejamos estándar, sino evaluamos optimizarlo
+      if (w > h) {
+        // Forzar a que la dimensión más grande sea el ancho para que entren más por fila si son chicos
+        w = p.ancho;
+        h = p.alto;
+      }
+
+      todosPaños.push({ id: `${p.id}-${i}`, ancho: w, alto: h, rotado: rotado });
     }
   });
 
-  // Ordenamos de mayor a menor por el lado más largo para estructurar las filas del taller
-  todosPaños.sort((a, b) => Math.max(b.ancho, b.alto) - Math.max(a.ancho, a.alto));
+  // Ordenamos de mayor a menor por alto para que las filas se acomoden de forma decreciente impecable
+  todosPaños.sort((a, b) => b.alto - a.alto);
 
   let hojas = [];
 
   todosPaños.forEach(paño => {
     let acomodado = false;
 
-    // 1. Intentar ubicar en las hojas que ya están abiertas
+    // Intentar meter en las hojas existentes
     for (let hoja of hojas) {
-      // Ordenamos los espacios libres: priorizamos los que están más abajo y a la izquierda
-      hoja.espaciosLibres.sort((a, b) => a.y - b.y || a.x - b.x);
+      // Recorremos las filas de corte creadas en esta hoja
+      for (let fila of hoja.filas) {
+        // ¿Entra a lo ancho en esta fila y no supera el alto de la hoja?
+        if (fila.anchoUsado + paño.ancho <= HOJA_ANCHO && fila.y + paño.alto <= HOJA_ALTO) {
+          
+          // Verificar si rotándolo al revés (parado) rinde mejor en la fila actual
+          let anchoFinal = paño.ancho;
+          let altoFinal = paño.alto;
+          let rotadoFinal = paño.rotado;
 
-      for (let i = 0; i < hoja.espaciosLibres.length; i++) {
-        let espacio = hoja.espaciosLibres[i];
-        let w = paño.ancho;
-        let h = paño.alto;
-        let rotado = false;
+          if (fila.anchoUsado + paño.alto <= HOJA_ANCHO && fila.y + paño.ancho <= HOJA_ALTO && paño.alto < paño.ancho) {
+            anchoFinal = paño.alto;
+            altoFinal = paño.ancho;
+            rotadoFinal = true;
+          }
 
-        let encajaNormal = (w <= espacio.w && h <= espacio.h);
-        let encajaRotado = (h <= espacio.w && w <= espacio.h);
-
-        if (!encajaNormal && !encajaRotado) continue;
-
-        // Decidir si conviene rotar para maximizar el remanente de la fila
-        if (encajaRotado && (!encajaNormal || (espacio.w - h < espacio.w - w))) {
-          w = paño.alto;
-          h = paño.ancho;
-          rotado = true;
-        }
-
-        // Registrar ubicación física del corte
-        hoja.paños.push({ ancho: w, alto: h, x: espacio.x, y: espacio.y, rotado });
-        hoja.areaUsada += (w * h);
-
-        // Generar las nuevas subdivisiones maximizadas
-        let espaciosNuevos = [];
-        // Opción A: Corte remanente a la derecha
-        if (espacio.w - w > 0) {
-          espaciosNuevos.push({ x: espacio.x + w, y: espacio.y, w: espacio.w - w, h: espacio.h });
-        }
-        // Opción B: Corte remanente hacia abajo (abarca todo el ancho del bloque disponible)
-        if (espacio.h - h > 0) {
-          espaciosNuevos.push({ x: espacio.x, y: espacio.y + h, w: espacio.w, h: espacio.h - h });
-        }
-
-        // Eliminar el espacio usado y añadir los nuevos
-        hoja.espaciosLibres.splice(i, 1);
-        hoja.espaciosLibres.push(...espaciosNuevos);
-
-        // Limpieza de espacios redundantes o contenidos dentro de otros (Bucle de Consolidación)
-        hoja.espaciosLibres = hoja.espaciosLibres.filter((e1, idx1) => {
-          return !hoja.espaciosLibres.some((e2, idx2) => {
-            if (idx1 === idx2) return false;
-            return e1.x >= e2.x && e1.y >= e2.y && 
-                   (e1.x + e1.w) <= (e2.x + e2.w) && 
-                   (e1.y + e1.h) <= (e2.y + e2.h);
+          hoja.paños.push({
+            ancho: anchoFinal,
+            alto: altoFinal,
+            x: fila.anchoUsado,
+            y: fila.y,
+            rotado: rotadoFinal
           });
-        });
 
-        acomodado = true;
-        break;
+          fila.anchoUsado += anchoFinal;
+          if (altoFinal > fila.altoMaximo) {
+            fila.altoMaximo = altoFinal;
+          }
+          hoja.areaUsada += (anchoFinal * altoFinal);
+          acomodado = true;
+          break;
+        }
       }
-      if (acomodado) break;
+
+      // Si entra en la hoja pero se llenaron las filas anteriores, probamos crear una nueva fila ARRIBA
+      if (!acomodado) {
+        let ultimaFila = hoja.filas[hoja.filas.length - 1];
+        let nuevoY = ultimaFila.y + ultimaFila.altoMaximo;
+
+        // ¿Tenemos espacio vertical para otra hilera completa?
+        if (nuevoY + paño.alto <= HOJA_ALTO && paño.ancho <= HOJA_ANCHO) {
+          let nuevaFila = {
+            y: nuevoY,
+            anchoUsado: paño.ancho,
+            altoMaximo: paño.alto
+          };
+          hoja.filas.push(nuevaFila);
+          hoja.paños.push({
+            ancho: paño.ancho,
+            alto: paño.alto,
+            x: 0,
+            y: nuevoY,
+            rotado: paño.rotado
+          });
+          hoja.areaUsada += (paño.ancho * paño.alto);
+          acomodado = true;
+          break;
+        }
+      }
     }
 
-    // 2. Si no entró en ninguna hoja, abrimos una nueva plancha estándar de 3600x2500
+    // Si no entra en ninguna hoja física, abrimos una plancha nueva en blanco de 3600x2500
     if (!acomodado) {
-      let w = paño.ancho;
-      let h = paño.alto;
-      let rotado = false;
-
-      if (h <= HOJA_ANCHO && w <= HOJA_ALTO && h > w) {
-        w = paño.alto;
-        h = paño.ancho;
-        rotado = true;
-      }
-
       let nuevaHoja = {
-        paños: [{ ancho: w, alto: h, x: 0, y: 0, rotado }],
-        areaUsada: w * h,
-        // La hoja arranca dividiéndose de forma limpia abarcando todo el remanente físico real
-        espaciosLibres: [
-          { x: w, y: 0, w: HOJA_ANCHO - w, h: HOJA_ALTO }, // Todo el bloque de la derecha
-          { x: 0, y: h, w: HOJA_ANCHO, h: HOJA_ALTO - h }  // Todo el bloque de abajo
-        ]
+        areaUsada: paño.ancho * paño.alto,
+        filas: [{
+          y: 0,
+          anchoUsado: paño.ancho,
+          altoMaximo: paño.alto
+        }],
+        paños: [{
+          ancho: paño.ancho,
+          alto: paño.alto,
+          x: 0,
+          y: 0,
+          rotado: paño.rotado
+        }]
       };
-
       hojas.push(nuevaHoja);
     }
   });
