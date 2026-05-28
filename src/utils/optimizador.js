@@ -40,7 +40,7 @@ export function calcularObraDVH(listaPaños, precioVidrioExt, precioVidrioInt, p
 }
 
 // ===================================================================
-// Algoritmo de Corte Guillotina 2D Perfecto con Rotación Inteligente
+// Algoritmo de Corte Guillotina Avanzado - Graziano Vidrios
 // ===================================================================
 export function optimizarCortes(listaPaños) {
   const HOJA_ANCHO = 3600;
@@ -54,16 +54,19 @@ export function optimizarCortes(listaPaños) {
     }
   });
 
-  // Ordenamos de mayor a menor por área para garantizar que los paños grandes entren primero
-  todosPaños.sort((a, b) => (b.ancho * b.alto) - (a.ancho * a.alto));
+  // Ordenamos de mayor a menor por el lado más largo para estructurar las filas del taller
+  todosPaños.sort((a, b) => Math.max(b.ancho, b.alto) - Math.max(a.ancho, a.alto));
 
   let hojas = [];
 
   todosPaños.forEach(paño => {
     let acomodado = false;
 
-    // 1. Intentar meter el paño en los espacios libres de las hojas que ya abrimos
+    // 1. Intentar ubicar en las hojas que ya están abiertas
     for (let hoja of hojas) {
+      // Ordenamos los espacios libres: priorizamos los que están más abajo y a la izquierda
+      hoja.espaciosLibres.sort((a, b) => a.y - b.y || a.x - b.x);
+
       for (let i = 0; i < hoja.espaciosLibres.length; i++) {
         let espacio = hoja.espaciosLibres[i];
         let w = paño.ancho;
@@ -73,41 +76,43 @@ export function optimizarCortes(listaPaños) {
         let encajaNormal = (w <= espacio.w && h <= espacio.h);
         let encajaRotado = (h <= espacio.w && w <= espacio.h);
 
-        // Si no entra de ninguna forma en este espacio, seguimos buscando
         if (!encajaNormal && !encajaRotado) continue;
 
-        // Si entra de las dos formas, elegimos la orientación que mejor muerda el espacio
+        // Decidir si conviene rotar para maximizar el remanente de la fila
         if (encajaRotado && (!encajaNormal || (espacio.w - h < espacio.w - w))) {
           w = paño.alto;
           h = paño.ancho;
           rotado = true;
         }
 
-        // Fijamos el paño en las coordenadas exactas de este espacio libre
-        hoja.paños.push({
-          ancho: w,
-          alto: h,
-          x: espacio.x,
-          y: espacio.y,
-          rotado: rotado
-        });
-
+        // Registrar ubicación física del corte
+        hoja.paños.push({ ancho: w, alto: h, x: espacio.x, y: espacio.y, rotado });
         hoja.areaUsada += (w * h);
 
-        // Partición Guillotina limpia: dividimos el espacio restante en dos rectángulos independientes
+        // Generar las nuevas subdivisiones maximizadas
         let espaciosNuevos = [];
-        // Espacio sobrante a la derecha
+        // Opción A: Corte remanente a la derecha
         if (espacio.w - w > 0) {
-          espaciosNuevos.push({ x: espacio.x + w, y: espacio.y, w: espacio.w - w, h: h });
+          espaciosNuevos.push({ x: espacio.x + w, y: espacio.y, w: espacio.w - w, h: espacio.h });
         }
-        // Espacio sobrante abajo
+        // Opción B: Corte remanente hacia abajo (abarca todo el ancho del bloque disponible)
         if (espacio.h - h > 0) {
           espaciosNuevos.push({ x: espacio.x, y: espacio.y + h, w: espacio.w, h: espacio.h - h });
         }
 
-        // Sacamos el espacio viejo que ya ocupamos y metemos los dos nuevos sub-bloques
+        // Eliminar el espacio usado y añadir los nuevos
         hoja.espaciosLibres.splice(i, 1);
         hoja.espaciosLibres.push(...espaciosNuevos);
+
+        // Limpieza de espacios redundantes o contenidos dentro de otros (Bucle de Consolidación)
+        hoja.espaciosLibres = hoja.espaciosLibres.filter((e1, idx1) => {
+          return !hoja.espaciosLibres.some((e2, idx2) => {
+            if (idx1 === idx2) return false;
+            return e1.x >= e2.x && e1.y >= e2.y && 
+                   (e1.x + e1.w) <= (e2.x + e2.w) && 
+                   (e1.y + e1.h) <= (e2.y + e2.h);
+          });
+        });
 
         acomodado = true;
         break;
@@ -115,28 +120,27 @@ export function optimizarCortes(listaPaños) {
       if (acomodado) break;
     }
 
-    // 2. Si no entró en ningún lado, abrimos una hoja limpia de 3600x2500
+    // 2. Si no entró en ninguna hoja, abrimos una nueva plancha estándar de 3600x2500
     if (!acomodado) {
       let w = paño.ancho;
       let h = paño.alto;
       let rotado = false;
 
-      // Si el paño es más alto que ancho y entra girado en la plancha base, lo acostamos
       if (h <= HOJA_ANCHO && w <= HOJA_ALTO && h > w) {
         w = paño.alto;
         h = paño.ancho;
         rotado = true;
       }
 
-      // IMPORTANTE: La hoja arranca con el primer paño clavado en (0,0) y sus dos subdivisiones iniciales correctas
       let nuevaHoja = {
-        paños: [{ ancho: w, alto: h, x: 0, y: 0, rotado: rotado }],
+        paños: [{ ancho: w, alto: h, x: 0, y: 0, rotado }],
         areaUsada: w * h,
-        espaciosLibres: []
+        // La hoja arranca dividiéndose de forma limpia abarcando todo el remanente físico real
+        espaciosLibres: [
+          { x: w, y: 0, w: HOJA_ANCHO - w, h: HOJA_ALTO }, // Todo el bloque de la derecha
+          { x: 0, y: h, w: HOJA_ANCHO, h: HOJA_ALTO - h }  // Todo el bloque de abajo
+        ]
       };
-
-      if (HOJA_ANCHO - w > 0) nuevaHoja.espaciosLibres.push({ x: w, y: 0, w: HOJA_ANCHO - w, h: h });
-      if (HOJA_ALTO - h > 0) nuevaHoja.espaciosLibres.push({ x: 0, y: h, w: w, h: HOJA_ALTO - h }); // <-- CORREGIDO: El ancho de abajo se limita a 'w' para evitar solapamientos virtuales
 
       hojas.push(nuevaHoja);
     }
