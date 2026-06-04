@@ -1,5 +1,5 @@
 // ===================================================================
-// Algoritmo MaxRects Definitivo - Graziano Vidrios
+// Algoritmo de Corte Avanzado - Graziano Vidrios (Fix Espacios)
 // ===================================================================
 export function optimizarCortes(listaPaños) {
   const HOJA_ANCHO = 3600;
@@ -17,11 +17,11 @@ export function optimizarCortes(listaPaños) {
     }
   });
 
-  // Evaluamos múltiples criterios de ordenamiento para encontrar el óptimo
+  // Evaluamos ordenando por área, por alto y por ancho
   const criteriosOrden = [
-    (a, b) => (b.ancho * b.alto) - (a.ancho * a.alto), 
-    (a, b) => b.alto - a.alto || b.ancho - a.ancho,     
-    (a, b) => b.ancho - a.ancho || b.alto - a.alto      
+    (a, b) => (b.ancho * b.alto) - (a.ancho * a.alto),
+    (a, b) => b.alto - a.alto || b.ancho - a.ancho,
+    (a, b) => b.ancho - a.ancho || b.alto - a.alto
   ];
 
   let mejorConfiguracionHojas = null;
@@ -38,12 +38,12 @@ export function optimizarCortes(listaPaños) {
       for (let hoja of hojasActuales) {
         let mejorEspacioIdx = -1;
         let mejorRotado = false;
-        let mejorPuntaje = Infinity; 
+        let mejorPuntaje = Infinity;
 
         for (let i = 0; i < hoja.espaciosLibres.length; i++) {
           let esp = hoja.espaciosLibres[i];
 
-          // Opción A: Normal
+          // Opción A: Sin Rotar
           if (paño.ancho <= esp.w && paño.alto <= esp.h) {
             let puntaje = Math.min(esp.w - paño.ancho, esp.h - paño.alto);
             if (puntaje < mejorPuntaje) {
@@ -79,54 +79,43 @@ export function optimizarCortes(listaPaños) {
 
           hoja.areaUsada += (paño.ancho * paño.alto);
 
-          // Generación de nuevos rectángulosMaximales libres (Estrategia MaxRects pura)
-          let nuevosEspacios = [];
-          if (esp.w - wFinal > 0) {
-            nuevosEspacios.push({ x: esp.x + wFinal, y: esp.y, w: esp.w - wFinal, h: esp.h });
+          // Generar los nuevos espacios libres expandidos
+          let espOriginal = hoja.espaciosLibres.splice(mejorEspacioIdx, 1)[0];
+          
+          // Dividimos el espacio restante de manera que conserve la línea de corte a la derecha
+          if (espOriginal.w - wFinal > 0) {
+            hoja.espaciosLibres.push({
+              x: espOriginal.x + wFinal,
+              y: espOriginal.y,
+              w: espOriginal.w - wFinal,
+              h: espOriginal.h
+            });
           }
-          if (esp.h - hFinal > 0) {
-            nuevosEspacios.push({ x: esp.x, y: esp.y + hFinal, w: esp.w, h: esp.h - hFinal });
+          if (espOriginal.h - hFinal > 0) {
+            hoja.espaciosLibres.push({
+              x: espOriginal.x,
+              y: espOriginal.y + hFinal,
+              w: wFinal,
+              h: espOriginal.h - hFinal
+            });
           }
 
-          hoja.espaciosLibres.splice(mejorEspacioIdx, 1, ...nuevosEspacios);
           hoja.espaciosLibres = filtrarEspaciosRedundantes(hoja.espaciosLibres);
-
           acomodado = true;
           break;
         }
       }
 
-      // Si no entra, abrimos una hoja y dejamos TODO el espacio disponible inicializado como un único bloque limpio
       if (!acomodado) {
-        let rotarEnNueva = false;
-        if (paño.ancho > HOJA_ANCHO || paño.alto > HOJA_ALTO) {
-          if (paño.alto <= HOJA_ANCHO && paño.ancho <= HOJA_ALTO) {
-            rotarEnNueva = true;
-          } else {
-            return; 
-          }
-        }
-
-        let wFinal = rotarEnNueva ? paño.alto : paño.ancho;
-        let hFinal = rotarEnNueva ? paño.ancho : paño.alto;
-
+        // Inicialización de hoja nueva limpia con espacio de corte total disponible
         let nuevaHoja = {
           areaUsada: paño.ancho * paño.alto,
-          paños: [{ ancho: wFinal, alto: hFinal, x: 0, y: 0, rotado: rotarEnNueva }],
-          // CLAVE: El espacio libre se subdivide a partir de la hoja completa, no con cortes fijos previos
-          espaciosLibres: []
+          paños: [{ ancho: paño.ancho, alto: paño.alto, x: 0, y: 0, rotado: false }],
+          espaciosLibres: [
+            { x: paño.ancho, y: 0, w: HOJA_ANCHO - paño.ancho, h: HOJA_ALTO },
+            { x: 0, y: paño.alto, w: HOJA_ANCHO, h: HOJA_ALTO - paño.alto }
+          ]
         };
-
-        if (HOJA_ANCHO - wFinal > 0) {
-          nuevaHoja.espaciosLibres.push({ x: wFinal, y: 0, w: HOJA_ANCHO - wFinal, h: HOJA_ALTO });
-        }
-        if (HOJA_ALTO - hFinal > 0) {
-          nuevaHoja.espaciosLibres.push({ x: 0, y: hFinal, w: wFinal, h: HOJA_ALTO - hFinal });
-        }
-        if (HOJA_ANCHO - wFinal > 0 && HOJA_ALTO - hFinal > 0) {
-          nuevaHoja.espaciosLibres.push({ x: wFinal, y: hFinal, w: HOJA_ANCHO - wFinal, h: HOJA_ALTO - hFinal });
-        }
-
         hojasActuales.push(nuevaHoja);
       }
     });
