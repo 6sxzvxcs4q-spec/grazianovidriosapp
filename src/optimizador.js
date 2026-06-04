@@ -142,4 +142,4 @@ function filtrarEspaciosRedundantes(espacios) {
       return e1.x >= e2.x && e1.y >= e2.y && (e1.x + e1.w) <= (e2.x + e2.w) && (e1.y + e1.h) <= (e2.y + e2.h);
     });
   });
-}
+}// Forzado
