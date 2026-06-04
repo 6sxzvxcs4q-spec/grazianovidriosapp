@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { calcularObraDVH, optimizarCortes } from './utils';
+import { calcularObraDVH, optimizarCortes } from './optimizador';
 
 export default function App() {
   const [pestana, setPestana] = useState('optimizador');
