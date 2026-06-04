@@ -1,12 +1,11 @@
 // ===================================================================
-// Algoritmo Ultra-Optimizador Avanzado (Estrategia MaxRects Completa)
+// Algoritmo MaxRects Definitivo - Graziano Vidrios
 // ===================================================================
 export function optimizarCortes(listaPaños) {
   const HOJA_ANCHO = 3600;
   const HOJA_ALTO = 2500;
   const AREA_TOTAL_HOJA = HOJA_ANCHO * HOJA_ALTO;
 
-  // 1. Desglosar todas las cantidades individuales
   let todosPaños = [];
   listaPaños.forEach(p => {
     for (let i = 0; i < p.cantidad; i++) {
@@ -18,18 +17,17 @@ export function optimizarCortes(listaPaños) {
     }
   });
 
-  // Intentamos 3 ordenamientos distintos para ver cuál da el mejor resultado global
+  // Evaluamos múltiples criterios de ordenamiento para encontrar el óptimo
   const criteriosOrden = [
-    (a, b) => (b.ancho * b.alto) - (a.ancho * a.alto), // Por Área Mayor
-    (a, b) => b.alto - a.alto || b.ancho - a.ancho,     // Por Alto Mayor
-    (a, b) => b.ancho - a.ancho || b.alto - a.alto      // Por Ancho Mayor
+    (a, b) => (b.ancho * b.alto) - (a.ancho * a.alto), 
+    (a, b) => b.alto - a.alto || b.ancho - a.ancho,     
+    (a, b) => b.ancho - a.ancho || b.alto - a.alto      
   ];
 
   let mejorConfiguracionHojas = null;
   let menosHojasTotales = Infinity;
   let mejorRendimientoGlobal = 0;
 
-  // Evaluamos cada criterio y nos quedamos con el ganador absoluto
   for (let criterio of criteriosOrden) {
     let pañosCopia = [...todosPaños].sort(criterio);
     let hojasActuales = [];
@@ -37,16 +35,15 @@ export function optimizarCortes(listaPaños) {
     pañosCopia.forEach(paño => {
       let acomodado = false;
 
-      // Intentar meter en los espacios de las hojas que ya abrimos
       for (let hoja of hojasActuales) {
         let mejorEspacioIdx = -1;
         let mejorRotado = false;
-        let mejorPuntaje = Infinity; // Buscamos minimizar el "Shortside Fit"
+        let mejorPuntaje = Infinity; 
 
         for (let i = 0; i < hoja.espaciosLibres.length; i++) {
           let esp = hoja.espaciosLibres[i];
 
-          // Opción normal
+          // Opción A: Normal
           if (paño.ancho <= esp.w && paño.alto <= esp.h) {
             let puntaje = Math.min(esp.w - paño.ancho, esp.h - paño.alto);
             if (puntaje < mejorPuntaje) {
@@ -56,7 +53,7 @@ export function optimizarCortes(listaPaños) {
             }
           }
 
-          // Opción rotada
+          // Opción B: Rotado
           if (paño.alto <= esp.w && paño.ancho <= esp.h) {
             let puntaje = Math.min(esp.w - paño.alto, esp.h - paño.ancho);
             if (puntaje < mejorPuntaje) {
@@ -67,7 +64,6 @@ export function optimizarCortes(listaPaños) {
           }
         }
 
-        // Si encontramos un lugar idóneo en esta hoja, lo ubicamos
         if (mejorEspacioIdx !== -1) {
           let esp = hoja.espaciosLibres[mejorEspacioIdx];
           let wFinal = mejorRotado ? paño.alto : paño.ancho;
@@ -83,7 +79,7 @@ export function optimizarCortes(listaPaños) {
 
           hoja.areaUsada += (paño.ancho * paño.alto);
 
-          // Estrategia MaxRects: Generar nuevos espacios libres a partir del corte
+          // Generación de nuevos rectángulosMaximales libres (Estrategia MaxRects pura)
           let nuevosEspacios = [];
           if (esp.w - wFinal > 0) {
             nuevosEspacios.push({ x: esp.x + wFinal, y: esp.y, w: esp.w - wFinal, h: esp.h });
@@ -92,10 +88,7 @@ export function optimizarCortes(listaPaños) {
             nuevosEspacios.push({ x: esp.x, y: esp.y + hFinal, w: esp.w, h: esp.h - hFinal });
           }
 
-          // Reemplazar el espacio usado por los remanentes optimizados
           hoja.espaciosLibres.splice(mejorEspacioIdx, 1, ...nuevosEspacios);
-
-          // Limpiar espacios libres que queden contenidos o duplicados dentro de otros
           hoja.espaciosLibres = filtrarEspaciosRedundantes(hoja.espaciosLibres);
 
           acomodado = true;
@@ -103,14 +96,14 @@ export function optimizarCortes(listaPaños) {
         }
       }
 
-      // Si no entró en ninguna hoja previa, se abre una nueva plancha de vidrio
+      // Si no entra, abrimos una hoja y dejamos TODO el espacio disponible inicializado como un único bloque limpio
       if (!acomodado) {
         let rotarEnNueva = false;
         if (paño.ancho > HOJA_ANCHO || paño.alto > HOJA_ALTO) {
           if (paño.alto <= HOJA_ANCHO && paño.ancho <= HOJA_ALTO) {
             rotarEnNueva = true;
           } else {
-            return; // Medida excede el tamaño máximo de la hoja de fábrica
+            return; 
           }
         }
 
@@ -120,6 +113,7 @@ export function optimizarCortes(listaPaños) {
         let nuevaHoja = {
           areaUsada: paño.ancho * paño.alto,
           paños: [{ ancho: wFinal, alto: hFinal, x: 0, y: 0, rotado: rotarEnNueva }],
+          // CLAVE: El espacio libre se subdivide a partir de la hoja completa, no con cortes fijos previos
           espaciosLibres: []
         };
 
@@ -127,17 +121,18 @@ export function optimizarCortes(listaPaños) {
           nuevaHoja.espaciosLibres.push({ x: wFinal, y: 0, w: HOJA_ANCHO - wFinal, h: HOJA_ALTO });
         }
         if (HOJA_ALTO - hFinal > 0) {
-          nuevaHoja.espaciosLibres.push({ x: 0, y: hFinal, w: HOJA_ANCHO, h: HOJA_ALTO - hFinal });
+          nuevaHoja.espaciosLibres.push({ x: 0, y: hFinal, w: wFinal, h: HOJA_ALTO - hFinal });
+        }
+        if (HOJA_ANCHO - wFinal > 0 && HOJA_ALTO - hFinal > 0) {
+          nuevaHoja.espaciosLibres.push({ x: wFinal, y: hFinal, w: HOJA_ANCHO - wFinal, h: HOJA_ALTO - hFinal });
         }
 
         hojasActuales.push(nuevaHoja);
       }
     });
 
-    // Calcular rendimiento global de esta corrida
     let rendimientoTotal = hojasActuales.reduce((acc, h) => acc + h.areaUsada, 0) / (hojasActuales.length * AREA_TOTAL_HOJA);
 
-    // Guardamos la corrida que use menos hojas o que tenga mejor promedio
     if (hojasActuales.length < menosHojasTotales || (hojasActuales.length === menosHojasTotales && rendimientoTotal > mejorRendimientoGlobal)) {
       menosHojasTotales = hojasActuales.length;
       mejorRendimientoGlobal = rendimientoTotal;
@@ -151,12 +146,10 @@ export function optimizarCortes(listaPaños) {
   }));
 }
 
-// Función auxiliar para eliminar sub-rectángulos redundantes
 function filtrarEspaciosRedundantes(espacios) {
   return espacios.filter((e1, idx1) => {
     return !espacios.some((e2, idx2) => {
       if (idx1 === idx2) return false;
-      // Verificar si e1 está completamente metido adentro de e2
       return e1.x >= e2.x && e1.y >= e2.y && (e1.x + e1.w) <= (e2.x + e2.w) && (e1.y + e1.h) <= (e2.y + e2.h);
     });
   });
